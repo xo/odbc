@@ -20,6 +20,13 @@ D13 gives each system its databases. The workflow in `.github/workflows/test.yml
 
 `dbrun` starts containers, and only a Linux runner can run them (D13). A native server is the only choice elsewhere. The checksums mean a changed download fails the job, and a pinned `dbmeta` commit means the servers do not change under the tests.
 
-## Open
+## Found on the first runs
 
-Nothing in the macOS and Windows jobs has run on a GitHub runner. The Linux job has not either. The first run will show what the images hold, and each such fact is to be fixed in the workflow and not guessed here.
+The first runs showed what the runner images hold, and the workflow follows them.
+
+- `dbrun` prints a line that names the release before the JSON, so the Linux job keeps the JSON alone.
+- PowerShell splits an option such as `-h127.0.0.1`, so the Windows job writes the long form of each option.
+- The PostgreSQL that the Windows runner provides makes a cluster in WIN1252 by default, which cannot hold the test text. The job makes its cluster in UTF8.
+- A process that a step starts ends with the step. The Windows job starts MySQL through WMI, so that the process belongs to no step.
+- The driver manager of Windows opens the trace file when the trace is turned on, so the driver sets the file first (D23).
+- MariaDB Connector/ODBC 3.1.15, the version of the Ubuntu package, lists no primary key of a MySQL 8 table. The catalog test knows it.

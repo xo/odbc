@@ -7,37 +7,23 @@ in [`decisions/`](decisions/README.md).
 
 ## Where the work stands
 
-The `test` module passes on all three systems, with `CGO_ENABLED=0`. Nothing is
-committed. The work is staged for Ken to review.
+The workflow passes on GitHub for all three systems (D21), with the databases that
+each runner holds. The `test` module also passes locally on Linux against all six
+databases, on Windows 11 against five, and on macOS against PostgreSQL, MariaDB,
+MySQL, SQLite and DuckDB.
 
 | System | Passes against |
 | --- | --- |
-| Linux (Arch), with `-race -count=1` | PostgreSQL, MariaDB, MySQL, SQL Server, SQLite and DuckDB |
-| Windows 11 | PostgreSQL, MariaDB, MySQL, SQLite and DuckDB |
-| macOS 15 (Intel, MacPorts) | PostgreSQL and DuckDB |
-| macOS 26 (Apple silicon, Homebrew) | PostgreSQL, MariaDB, MySQL, SQLite and DuckDB |
+| Linux | PostgreSQL, MariaDB, MySQL, SQL Server, SQLite and DuckDB |
+| Windows | PostgreSQL, MySQL, SQLite and DuckDB in CI, and MariaDB in the VM |
+| macOS | PostgreSQL, MariaDB, SQLite and DuckDB in CI, and MySQL on a Mac with Homebrew |
 
-SQL Server is tested on Linux only (D13). MacPorts has no driver for MariaDB,
-MySQL or SQLite, so the Intel macOS VM does not test them. An Apple silicon Mac
-with Homebrew tests them.
+SQL Server is tested on Linux only (D13).
 
-Done:
+The driver has the options of D22, the tools of D23 and the block fetch, catalog
+and location of D24. The first release is v0.1.0.
 
-- The project setup: the documents, the skills, the decisions, the lint
-  configuration and the workflow.
-- The driver loads the driver manager with `purego`. It has a connector,
-  connections, and prepared and direct statements with bound parameters. Rows
-  are read in chunks. Transactions have isolation levels. A canceled context
-  cancels the statement. Errors carry the SQLSTATE, which is the five character
-  code that a database gives each error.
-- The types follow D18, and the few quirks of a driver follow D19.
-- The `test/` module of D15. It runs the `dbmeta` fixture of each database and
-  every `dbmeta` query that the database answers. It round trips each kind of
-  value through `dbimptest.RoundTrip`. It also checks for leaked goroutines.
-
-The CI workflow is written for all three systems (D21) and passes `actionlint`. It
-has not run on a GitHub runner. The first run is the next step. See
-[`BACKLOG.md`](BACKLOG.md).
+Next: see [`BACKLOG.md`](BACKLOG.md).
 
 ## Running the tests here
 

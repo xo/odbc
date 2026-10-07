@@ -45,18 +45,8 @@ None open.
 
 ### CI
 
-
-- Run the workflow on GitHub and fix what the runner images show (D21). Nothing in
-  it has run there.
-- Where the drivers come from, as found in the VMs: `psqlODBC`, Go and the
-  PostgreSQL ODBC are on `winget`. MariaDB Connector/ODBC 3.2.9 is an MSI on
-  `dlm.mariadb.com`. The SQLite ODBC driver is `sqliteodbc_w64.exe` on
-  ch-werner.de. DuckDB is a zip on the `duckdb/duckdb-odbc` releases, with
-  `osx-universal` and `windows-amd64` builds. MacPorts has `unixODBC` and
-  `psqlODBC` for macOS.
-- Write the install steps for each ODBC driver on each system, with the
-  environment variable that names the library. Check that the macOS and
-  Windows runners ship PostgreSQL, MySQL and MariaDB. Check that each driver has
-  a macOS arm64 build and a 64-bit Windows build.
-- Check the license of the Microsoft ODBC driver, and the flags that accept it
-  in CI on each system.
+- Check the license of the Microsoft ODBC driver. The Linux job installs it with
+  `ACCEPT_EULA=Y`, which accepts the terms for the project (D21).
+- Test a database through the MySQL Connector/ODBC of Oracle, which the tests do
+  not run (D14).
+- Test on Apple silicon with MacPorts. The CI job uses Homebrew.
