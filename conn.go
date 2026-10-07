@@ -21,6 +21,7 @@ type conn struct {
 	dbms      string
 	onWarning func(*Error)
 	loc       *time.Location
+	traced    bool
 	inTx      bool
 	closed    bool
 }
@@ -96,6 +97,11 @@ func (c *conn) Close() error {
 	}
 	c.closed = true
 	err := c.api.check("disconnecting", c.api.disconnect(c.dbc), handleDbc, c.dbc)
+	if c.traced {
+		// The driver manager of Windows keeps the trace file open until the trace is
+		// off, and a caller cannot remove the file before then.
+		_ = c.api.setConnAttr(c.dbc, attrTrace, traceOff, 0)
+	}
 	if e := c.api.check("freeing the connection", c.api.freeHandle(handleDbc, c.dbc), handleDbc, c.dbc); err == nil {
 		err = e
 	}

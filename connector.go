@@ -84,7 +84,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		_ = a.freeHandle(handleDbc, dbc)
 		return nil, err
 	}
-	c2 := &conn{api: a, dbc: dbc, onWarning: c.cfg.OnWarning, loc: c.cfg.Location}
+	c2 := &conn{api: a, dbc: dbc, onWarning: c.cfg.OnWarning, loc: c.cfg.Location, traced: c.cfg.TraceFile != ""}
 	c2.warn("connecting", ret, handleDbc, dbc)
 	name := make([]byte, 128*a.wchar)
 	var nameLen int16

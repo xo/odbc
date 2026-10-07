@@ -48,6 +48,7 @@ const (
 	attrTrace        = 104
 	attrTraceFile    = 105
 	traceOn          = 1
+	traceOff         = 0
 	fetchNext        = 1
 	fetchFirst       = 2
 	// probeAttribute is an environment attribute that no manager knows.

@@ -73,7 +73,15 @@ func TestDrivers(t *testing.T) {
 // TestTrace turns the trace of the driver manager on and checks that it wrote.
 func TestTrace(t *testing.T) {
 	each(t, func(t *testing.T, p product, _ *sql.DB) {
-		file := t.TempDir() + "/trace.log"
+		// not t.TempDir, because a driver manager can keep the file open until the
+		// process ends, and then the removal of the directory fails the test
+		f, err := os.CreateTemp("", "odbc-trace-*.log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = f.Close()
+		file := f.Name()
+		t.Cleanup(func() { _ = os.Remove(file) })
 		db := openWith(t, p, func(c *odbc.Config) { c.TraceFile = file })
 		var n int
 		if err := db.QueryRowContext(t.Context(), "SELECT 1").Scan(&n); err != nil {
