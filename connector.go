@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"io"
 	"math"
+	"runtime"
 	"sync"
 	"time"
 	"unsafe"
@@ -62,12 +63,15 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		_ = a.setConnAttr(dbc, attrLoginTimeout, uintptr(secs), 0)
 	}
 	if c.cfg.TraceFile != "" {
+		// The file comes first, because the driver manager of Windows opens it when
+		// the trace is turned on.
 		file := a.encode(c.cfg.TraceFile)
-		if err := a.check("turning the trace on", a.setConnAttr(dbc, attrTrace, traceOn, 0), handleDbc, dbc); err != nil {
+		if err := a.check("setting the trace file", a.setConnAttrPtr(dbc, attrTraceFile, unsafe.Pointer(&file[0]), nts), handleDbc, dbc); err != nil {
 			_ = a.freeHandle(handleDbc, dbc)
 			return nil, err
 		}
-		if err := a.check("setting the trace file", a.setConnAttrPtr(dbc, attrTraceFile, unsafe.Pointer(&file[0]), nts), handleDbc, dbc); err != nil {
+		runtime.KeepAlive(file)
+		if err := a.check("turning the trace on", a.setConnAttr(dbc, attrTrace, traceOn, 0), handleDbc, dbc); err != nil {
 			_ = a.freeHandle(handleDbc, dbc)
 			return nil, err
 		}

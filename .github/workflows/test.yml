@@ -306,15 +306,19 @@ jobs:
         run: |
           $pg = Join-Path $env:PGROOT "bin"
           Set-Content -NoNewline -Path "$env:RUNNER_TEMP\pgpass" -Value "P4ssw0rd"
-          & "$pg\initdb.exe" -D "$env:RUNNER_TEMP\pg" -U postgres --auth=password --pwfile="$env:RUNNER_TEMP\pgpass"
+          # The default encoding on Windows is WIN1252, which cannot hold the text of
+          # the tests. The C locale takes UTF8.
+          & "$pg\initdb.exe" -D "$env:RUNNER_TEMP\pg" -U postgres --encoding=UTF8 --locale=C --auth=password --pwfile="$env:RUNNER_TEMP\pgpass"
           & "$pg\pg_ctl.exe" -D "$env:RUNNER_TEMP\pg" -o "-p 55009" -l "$env:RUNNER_TEMP\pg.log" -w start
 
       - name: Start MySQL
-        # The runner image has MySQL installed. This makes a server of its own.
+        # The runner image has MySQL installed. This makes a server of its own, as a
+        # Windows service. A process that a step starts ends with the step.
         run: |
           $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
           & "$mysql\mysqld.exe" --initialize-insecure --datadir="$env:RUNNER_TEMP\mysql"
-          Start-Process "$mysql\mysqld.exe" -ArgumentList "--datadir=$env:RUNNER_TEMP\mysql","--port=55018","--console" -RedirectStandardError "$env:RUNNER_TEMP\mysql.log"
+          & "$mysql\mysqld.exe" --install odbcci --datadir="$env:RUNNER_TEMP\mysql" --port=55018
+          Start-Service odbcci
           for ($i = 0; $i -lt 60; $i++) {
             & "$mysql\mysql.exe" --user=root --host=127.0.0.1 --port=55018 --execute="SELECT 1" 2>$null
             if ($LASTEXITCODE -eq 0) { break }

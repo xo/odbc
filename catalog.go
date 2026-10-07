@@ -100,6 +100,13 @@ func (c *conn) Columns(ctx context.Context, catalog, schema, table, column strin
 // is not a pattern, and an empty catalog or schema matches the current one
 // (D24).
 func (c *conn) PrimaryKeys(ctx context.Context, catalog, schema, table string) ([]PrimaryKeyInfo, error) {
+	if catalog == "" {
+		// Some database drivers list no key for a table when the catalog is not
+		// given, so name the current one. A table name alone means that one.
+		if cur, err := c.catalog(); err == nil {
+			catalog = cur
+		}
+	}
 	cat, sch, tab := c.api.encodeOrNil(catalog), c.api.encodeOrNil(schema), c.api.encodeOrNil(table)
 	rows, err := c.catalogRows(ctx, "listing the primary key", func(h uintptr) int16 {
 		return c.api.primaryKeys(h, ptr(cat), len0(cat), ptr(sch), len0(sch), ptr(tab), len0(tab))
