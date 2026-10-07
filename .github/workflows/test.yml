@@ -312,18 +312,24 @@ jobs:
           & "$pg\pg_ctl.exe" -D "$env:RUNNER_TEMP\pg" -o "-p 55009" -l "$env:RUNNER_TEMP\pg.log" -w start
 
       - name: Start MySQL
-        # The runner image has MySQL installed. This makes a server of its own, as a
-        # Windows service. A process that a step starts ends with the step.
+        # The runner image has MySQL installed. This makes a server of its own. A
+        # process that a step starts ends with the step, so WMI starts it, and the
+        # process then belongs to no step.
         run: |
           $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
-          & "$mysql\mysqld.exe" --initialize-insecure --datadir="$env:RUNNER_TEMP\mysql"
-          $binary = "`"$mysql\mysqld.exe`" --datadir=`"$env:RUNNER_TEMP\mysql`" --port=55018 odbcci"
-          New-Service -Name odbcci -BinaryPathName $binary -StartupType Manual | Out-Null
-          Start-Service odbcci
-          for ($i = 0; $i -lt 60; $i++) {
+          $data = "$env:RUNNER_TEMP\mysql"
+          & "$mysql\mysqld.exe" --initialize-insecure --datadir="$data"
+          $command = "`"$mysql\mysqld.exe`" --datadir=`"$data`" --port=55018 --log-error=`"$env:RUNNER_TEMP\mysql.log`""
+          Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $command } | Out-Null
+          $up = $false
+          for ($i = 0; $i -lt 60 -and -not $up; $i++) {
             & "$mysql\mysql.exe" --user=root --host=127.0.0.1 --port=55018 --execute="SELECT 1" 2>$null
-            if ($LASTEXITCODE -eq 0) { break }
-            Start-Sleep -Seconds 1
+            $up = ($LASTEXITCODE -eq 0)
+            if (-not $up) { Start-Sleep -Seconds 1 }
+          }
+          if (-not $up) {
+            Get-Content "$env:RUNNER_TEMP\mysql.log"
+            throw "MySQL did not start"
           }
           & "$mysql\mysql.exe" --user=root --host=127.0.0.1 --port=55018 --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY 'P4ssw0rd'"
 
