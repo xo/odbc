@@ -317,7 +317,8 @@ jobs:
         run: |
           $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
           & "$mysql\mysqld.exe" --initialize-insecure --datadir="$env:RUNNER_TEMP\mysql"
-          & "$mysql\mysqld.exe" --install odbcci --datadir="$env:RUNNER_TEMP\mysql" --port=55018
+          $binary = "`"$mysql\mysqld.exe`" --datadir=`"$env:RUNNER_TEMP\mysql`" --port=55018 odbcci"
+          New-Service -Name odbcci -BinaryPathName $binary -StartupType Manual | Out-Null
           Start-Service odbcci
           for ($i = 0; $i -lt 60; $i++) {
             & "$mysql\mysql.exe" --user=root --host=127.0.0.1 --port=55018 --execute="SELECT 1" 2>$null

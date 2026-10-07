@@ -31,9 +31,14 @@ None open.
 
 ### Known limits
 
-- The Homebrew SQLite ODBC driver cuts each character of a statement to its low
-  byte. Non-ASCII text in a literal is wrong on macOS. An argument is fine. The
-  round trip test skips that case there.
+- MariaDB Connector/ODBC before 3.2 lists no primary key of a MySQL 8 or later
+  table, because it compares `COLUMN_KEY` with the text `pri` and MySQL compares
+  it case sensitively. The Ubuntu package is 3.1.15. `TestCatalog` logs it.
+
+- The SQLite ODBC driver converts the text of a statement to a narrow string. On
+  macOS and in a container with no locale it cuts each character to its low
+  byte, so non-ASCII text in a literal is wrong. An argument is fine, and the
+  runner of CI converts it correctly. The round trip test skips that case.
 - A manager of 4 bytes (`iODBC`) works, but the Homebrew database drivers are
   built for `unixODBC` and read its text wrongly (D20). Test with a driver built
   for `iODBC` if one exists.

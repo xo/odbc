@@ -60,10 +60,15 @@ func TestCatalog(t *testing.T) {
 			if err != nil {
 				return fmt.Errorf("primary keys: %w", err)
 			}
+			version, _ := c.GetInfoString(odbc.InfoDriverVersion)
 			switch {
 			case p.name == "duckdb" && len(keys) == 0:
 				// the DuckDB driver lists no primary key
 				t.Logf("duckdb lists no primary key")
+			case p.name == "mysql" && len(keys) == 0 && oldMariaDBDriver(version):
+				// MariaDB Connector/ODBC before 3.2 compares COLUMN_KEY with the
+				// text 'pri', and MySQL 8 and later compare it case sensitively
+				t.Logf("the driver %s lists no primary key of a MySQL table", version)
 			case len(keys) != 1 || !strings.EqualFold(keys[0].Column, "id") || keys[0].Sequence != 1:
 				t.Errorf("primary keys: got %+v", keys)
 			}
@@ -278,4 +283,15 @@ func TestFetchSizeNeverCutsAValue(t *testing.T) {
 			t.Errorf("one at a time: got %q and %v", s, err)
 		}
 	})
+}
+
+// oldMariaDBDriver reports whether a driver version, in the form 03.01.0015 that
+// SQLGetInfo gives, is before 3.2.
+func oldMariaDBDriver(version string) bool {
+	major, minor, ok := strings.Cut(version, ".")
+	if !ok {
+		return false
+	}
+	minor, _, _ = strings.Cut(minor, ".")
+	return strings.TrimLeft(major, "0") < "3" || (strings.TrimLeft(major, "0") == "3" && strings.TrimLeft(minor, "0") < "2")
 }

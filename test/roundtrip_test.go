@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -222,10 +221,11 @@ func literal(p product, v any) (string, error) {
 		}
 		return "0", nil
 	case string:
-		if p.name == "sqlite" && runtime.GOOS == "darwin" && !isASCII(v) {
-			// The Homebrew SQLite ODBC driver cuts each character of the text of a
-			// statement to its low byte, so a literal can hold ASCII only. An
-			// argument is not affected.
+		if p.name == "sqlite" && !isASCII(v) {
+			// The SQLite ODBC driver converts the text of a statement to a narrow
+			// string, and on macOS and in a container with no locale it cuts each
+			// character to its low byte. A literal can then hold ASCII only. An
+			// argument is not affected, and the runner of CI converts it correctly.
 			return "", fmt.Errorf("writing %q as a literal: %w", v, dbimp.ErrNotSupported)
 		}
 		return text(v), nil
