@@ -75,7 +75,7 @@ func TestTrace(t *testing.T) {
 	each(t, func(t *testing.T, p product, _ *sql.DB) {
 		// not t.TempDir, because a driver manager can keep the file open until the
 		// process ends, and then the removal of the directory fails the test
-		f, err := os.CreateTemp("", "odbc-trace-*.log")
+		f, err := os.CreateTemp("", "odbc-trace-*.log") //nolint:usetesting // see the comment above
 		if err != nil {
 			t.Fatal(err)
 		}
