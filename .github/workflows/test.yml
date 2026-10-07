@@ -1,0 +1,336 @@
+# Tests odbc on every push and pull request, and every night.
+#
+# The driver loads a system library at run time, so the operating system is
+# part of what is tested, and so is the ODBC driver of each database. Each
+# system tests the databases that D13 gives it:
+#
+#   Linux    PostgreSQL, MariaDB, MySQL and SQL Server in containers that dbrun
+#            starts, and SQLite and DuckDB
+#   macOS    PostgreSQL and MariaDB installed with Homebrew, and SQLite and DuckDB
+#   Windows  PostgreSQL and MySQL that the runner provides, and SQLite and DuckDB
+#
+# Homebrew has no way to hold MySQL and MariaDB together, so macOS tests MariaDB
+# and not MySQL, and the same driver serves both on the other two systems.
+#
+# The ODBC drivers are installed on the runner and never kept in the
+# repository. A test reads the name or the path of each driver from
+# ODBC_<DATABASE>_DRIVER and the URL of each server from ODBC_<DATABASE>_URL,
+# which is how dbrun names it (D13, and dsnOf in test/product_test.go).
+#
+# The jobs for macOS and Windows install software that the other jobs do not,
+# and nothing here has run on a GitHub runner yet. Read the first run closely.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # every night, so a new release of a tool or an action cannot hide
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The dbmeta commit that holds dbrun, which is not tagged. This is the
+  # commit of v0.2.0, the version that the test module pins (D15).
+  DBMETA_COMMIT: 39b74b2dac7a2684f9b55f633177851e9cf7960c
+  DBMETA_OWNER_NAME: odbc-ci
+  DBMETA_RUNNER: docker
+  # The DuckDB ODBC driver, with the checksum of the zip for each system.
+  DUCKDB_ODBC_VERSION: v1.5.6.0
+  DUCKDB_ODBC_SHA256_LINUX: 6c82786a49c2e7750a2e054e09b9d9cd3bac156666e912d75bc184077321f52f
+  DUCKDB_ODBC_SHA256_MACOS: 4d9617a30768df1685e71b99a61d394af5de25755c91990fd1dd9536fdf966db
+  DUCKDB_ODBC_SHA256_WINDOWS: 8b511f8eb2be9a9c475d1208c181912eea75853ddac92853d0cb76cfb0694265
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Lint
+        # Pinned. The configuration is `default: all`, so an unpinned upgrade
+        # enables a new linter and fails a build that changed nothing.
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.1
+
+      - name: Lint the test module
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.1
+          working-directory: test
+
+  unit:
+    name: Unit on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "these files are not formatted:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        # -race needs cgo, so it runs in its own job on Linux below.
+        run: go test -count=2 ./...
+
+      - name: Vet and build the test module
+        working-directory: test
+        run: |
+          go vet ./...
+          go test -count=1 -run 'TestFromURL' ./...
+
+  race:
+    name: Race
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Test with the race detector
+        run: go test -race -count=2 ./...
+
+  linux:
+    name: Linux with the databases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Check out dbmeta, for dbrun
+        uses: actions/checkout@v5
+        with:
+          repository: xo/dbmeta
+          ref: ${{ env.DBMETA_COMMIT }}
+          path: dbmeta
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache-dependency-path: |
+            go.sum
+            test/go.sum
+            dbmeta/test/go.sum
+
+      - name: Install the ODBC drivers
+        # The Microsoft repository is already on the runner. ACCEPT_EULA is how
+        # the package takes the license of the Microsoft driver.
+        run: |
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y unixodbc odbc-postgresql odbc-mariadb libsqliteodbc msodbcsql18
+          odbcinst -q -d
+
+      - name: Install the DuckDB ODBC driver
+        run: |
+          curl -fsSL -o duckdb.zip "https://github.com/duckdb/duckdb-odbc/releases/download/${DUCKDB_ODBC_VERSION}/duckdb_odbc-linux-amd64.zip"
+          echo "${DUCKDB_ODBC_SHA256_LINUX}  duckdb.zip" | sha256sum -c -
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+
+      - name: Start the databases
+        working-directory: dbmeta/test
+        run: go run ./cmd/dbrun start postgres mariadb mysql sqlserver
+
+      - name: Name the servers and the drivers
+        # dbrun prints the URL of each server. The driver names are the ones
+        # that the packages above register.
+        working-directory: dbmeta/test
+        run: |
+          for name in postgres mariadb mysql sqlserver; do
+            url=$(go run ./cmd/dbrun dsn --json "$name" 2>/dev/null | jq -r '.[0].url')
+            echo "ODBC_${name^^}_URL=$url" >> "$GITHUB_ENV"
+          done
+          {
+            echo "ODBC_POSTGRES_DRIVER=PostgreSQL Unicode"
+            echo "ODBC_MARIADB_DRIVER=MariaDB Unicode"
+            echo "ODBC_MYSQL_DRIVER=MariaDB Unicode"
+            echo "ODBC_SQLSERVER_DRIVER=ODBC Driver 18 for SQL Server"
+            echo "ODBC_SQLITE_DRIVER=SQLite3"
+            echo "ODBC_DUCKDB_DRIVER=$RUNNER_TEMP/duckdb/libduckdb_odbc.so"
+          } >> "$GITHUB_ENV"
+
+      - name: Test
+        working-directory: test
+        run: go test -race -count=1 -v ./...
+
+  macos:
+    name: macOS with the databases
+    runs-on: macos-latest
+    env:
+      CGO_ENABLED: "0"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache-dependency-path: |
+            go.sum
+            test/go.sum
+
+      - name: Install the ODBC drivers and the servers
+        run: |
+          brew install unixodbc psqlodbc mariadb-connector-odbc sqliteodbc postgresql@17 mariadb
+
+      - name: Install the DuckDB ODBC driver
+        run: |
+          curl -fsSL -o duckdb.zip "https://github.com/duckdb/duckdb-odbc/releases/download/${DUCKDB_ODBC_VERSION}/duckdb_odbc-osx-universal.zip"
+          echo "${DUCKDB_ODBC_SHA256_MACOS}  duckdb.zip" | shasum -a 256 -c -
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+
+      - name: Start PostgreSQL
+        run: |
+          pg="$(brew --prefix postgresql@17)/bin"
+          echo "P4ssw0rd" > "$RUNNER_TEMP/pgpass"
+          "$pg/initdb" -D "$RUNNER_TEMP/pg" -U postgres --auth=password --pwfile="$RUNNER_TEMP/pgpass"
+          "$pg/pg_ctl" -D "$RUNNER_TEMP/pg" -o "-p 55009 -k $RUNNER_TEMP" -l "$RUNNER_TEMP/pg.log" -w start
+
+      - name: Start MariaDB
+        run: |
+          maria="$(brew --prefix mariadb)"
+          "$maria/bin/mariadb-install-db" --datadir="$RUNNER_TEMP/maria" --auth-root-authentication-method=normal
+          "$maria/bin/mariadbd-safe" --datadir="$RUNNER_TEMP/maria" --port=55015 --socket="$RUNNER_TEMP/maria.sock" > "$RUNNER_TEMP/maria.log" 2>&1 &
+          for i in $(seq 1 60); do
+            "$maria/bin/mariadb" --socket="$RUNNER_TEMP/maria.sock" -uroot -e "SELECT 1" && break
+            sleep 1
+          done
+          "$maria/bin/mariadb" --socket="$RUNNER_TEMP/maria.sock" -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'P4ssw0rd'; CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'P4ssw0rd'; GRANT ALL ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION"
+
+      - name: Name the servers and the drivers
+        run: |
+          lib="$(brew --prefix)/lib"
+          {
+            echo "ODBC_POSTGRES_URL=postgres://postgres:P4ssw0rd@127.0.0.1:55009/postgres"
+            echo "ODBC_POSTGRES_DRIVER=$lib/psqlodbcw.so"
+            echo "ODBC_MARIADB_URL=mysql://root:P4ssw0rd@127.0.0.1:55015/"
+            echo "ODBC_MARIADB_DRIVER=$(brew --prefix mariadb-connector-odbc)/lib/mariadb/libmaodbc.dylib"
+            echo "ODBC_SQLITE_DRIVER=$lib/libsqlite3odbc.dylib"
+            echo "ODBC_DUCKDB_DRIVER=$RUNNER_TEMP/duckdb/libduckdb_odbc.dylib"
+          } >> "$GITHUB_ENV"
+
+      - name: Test
+        working-directory: test
+        run: go test -count=1 -v ./...
+
+  windows:
+    name: Windows with the databases
+    runs-on: windows-latest
+    env:
+      CGO_ENABLED: "0"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache-dependency-path: |
+            go.sum
+            test/go.sum
+
+      - name: Install the ODBC drivers
+        run: |
+          choco install psqlodbc --no-progress -y
+          Invoke-WebRequest "https://dlm.mariadb.com/4785809/Connectors/odbc/connector-odbc-3.2.9/codbc-amd64-windows/mariadb-connector-odbc-3.2.9-win64.msi" -OutFile maodbc.msi
+          if ((Get-FileHash maodbc.msi -Algorithm SHA256).Hash -ne "3AAA0202A48E456A692F1864B62DA3BAEB037EB797692E1737EB675C05FDA038") { throw "maodbc.msi does not match its checksum" }
+          Start-Process msiexec -ArgumentList "/i","maodbc.msi","/qn","/norestart" -Wait
+          Invoke-WebRequest "http://www.ch-werner.de/sqliteodbc/sqliteodbc_w64.exe" -OutFile sqliteodbc_w64.exe
+          if ((Get-FileHash sqliteodbc_w64.exe -Algorithm SHA256).Hash -ne "A4804E4F54F42C721DF1323C5FCAC101A8C7A577E7F20979227324CEAB572D51") { throw "sqliteodbc_w64.exe does not match its checksum" }
+          Start-Process .\sqliteodbc_w64.exe -ArgumentList "/S" -Wait
+          Invoke-WebRequest "https://github.com/duckdb/duckdb-odbc/releases/download/$env:DUCKDB_ODBC_VERSION/duckdb_odbc-windows-amd64.zip" -OutFile duckdb.zip
+          if ((Get-FileHash duckdb.zip -Algorithm SHA256).Hash -ne $env:DUCKDB_ODBC_SHA256_WINDOWS.ToUpper()) { throw "duckdb.zip does not match its checksum" }
+          Expand-Archive duckdb.zip -DestinationPath "$env:RUNNER_TEMP\duckdb"
+          # the driver manager of Windows takes a registered name and not a path
+          & "$env:RUNNER_TEMP\duckdb\odbc_install.exe" /CI /Install
+          Get-OdbcDriver | Select-Object Name
+
+      - name: Start PostgreSQL
+        # The runner image has PostgreSQL installed and stopped. This makes a
+        # server of its own, so that the password is known.
+        run: |
+          $pg = Join-Path $env:PGROOT "bin"
+          Set-Content -NoNewline -Path "$env:RUNNER_TEMP\pgpass" -Value "P4ssw0rd"
+          & "$pg\initdb.exe" -D "$env:RUNNER_TEMP\pg" -U postgres --auth=password --pwfile="$env:RUNNER_TEMP\pgpass"
+          & "$pg\pg_ctl.exe" -D "$env:RUNNER_TEMP\pg" -o "-p 55009" -l "$env:RUNNER_TEMP\pg.log" -w start
+
+      - name: Start MySQL
+        # The runner image has MySQL installed. This makes a server of its own.
+        run: |
+          $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
+          & "$mysql\mysqld.exe" --initialize-insecure --datadir="$env:RUNNER_TEMP\mysql"
+          Start-Process "$mysql\mysqld.exe" -ArgumentList "--datadir=$env:RUNNER_TEMP\mysql","--port=55018","--console" -RedirectStandardError "$env:RUNNER_TEMP\mysql.log"
+          for ($i = 0; $i -lt 60; $i++) {
+            & "$mysql\mysql.exe" -uroot -h127.0.0.1 -P55018 -e "SELECT 1" 2>$null
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds 1
+          }
+          & "$mysql\mysql.exe" -uroot -h127.0.0.1 -P55018 -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'P4ssw0rd'"
+
+      - name: Name the servers and the drivers
+        run: |
+          @(
+            "ODBC_POSTGRES_URL=postgres://postgres:P4ssw0rd@127.0.0.1:55009/postgres",
+            "ODBC_POSTGRES_DRIVER=PostgreSQL Unicode",
+            "ODBC_MYSQL_URL=mysql://root:P4ssw0rd@127.0.0.1:55018/",
+            "ODBC_MYSQL_DRIVER=MariaDB ODBC 3.2 Driver",
+            "ODBC_SQLITE_DRIVER=SQLite3 ODBC Driver",
+            "ODBC_DUCKDB_DRIVER=DuckDB Driver"
+          ) | Add-Content -Path $env:GITHUB_ENV
+
+      - name: Test
+        working-directory: test
+        run: go test -count=1 -v ./...

@@ -1,0 +1,4 @@
+# Every text file is LF on every checkout, including one on Windows. Git for
+# Windows writes CRLF by default, and the decision files and the tests that
+# read them compare exact text.
+* text=auto eol=lf

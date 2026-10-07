@@ -1,0 +1,9 @@
+# Everything this repository ignores, in one file.
+
+# The Claude Code permissions of one person. The shared .claude/settings.json
+# is not ignored, because a setting that belongs to the project is committed.
+.claude/settings.local.json
+.claude/worktrees/
+
+# The state that dbrun keeps for the servers it starts.
+state/

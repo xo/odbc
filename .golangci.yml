@@ -1,0 +1,133 @@
+# Lint configuration.
+#
+# # The rule for adding to this file
+#
+# A linter that makes idiomatic Go worse is disabled here, with the reason
+# beside it. Only a real defect gets a code change. A change made to quiet a
+# linter, and not to fix something, leaves code that no reader can explain.
+#
+# # The posture
+#
+# `default: all` with a disable list. A linter that arrives in a new release
+# then gets a look and not silence. The version in CI is pinned, so an upgrade
+# cannot break a build that changed nothing.
+version: "2"
+
+linters:
+  default: all
+  disable:
+    # The driver registers itself from init, as every database/sql driver
+    # does, and the registration is a package level value.
+    - gochecknoinits
+    - gochecknoglobals
+    # Complexity metrics. A switch over the ODBC type codes is long and flat,
+    # and these count it as complex.
+    - cyclop
+    - funlen
+    - gocognit
+    - gocyclo
+    - maintidx
+    - nestif
+    - lll
+    - wsl
+    - wsl_v5
+    # err113 wants every error wrapped from a sentinel. The rule here is
+    # stricter and different: a sentinel is a constant of a defined string
+    # type, which err113 cannot check.
+    - err113
+    # wrapcheck wants every error from database/sql wrapped, which destroys
+    # the identity a caller tests with errors.Is.
+    - wrapcheck
+    # Style opinions that argue with gofmt or with plain code.
+    - nlreturn
+    - varnamelen
+    - exhaustruct
+    - exhaustruct_v5
+    - mnd
+    # Methods are grouped by the interface they implement, with the helpers
+    # beside the code that uses them, and not by whether the name is exported.
+    - funcorder
+    - nilnil
+    - ireturn
+    - nonamedreturns
+    - noinlineerr
+    - prealloc
+    - recvcheck
+    - exhaustive
+    # depguard holds the dependency rule, and holding it twice means two
+    # places to change it.
+    - gomodguard
+    - gomodguard_v2
+    # An integration test shares one database, so it does not run in parallel.
+    - paralleltest
+    # A test can need names that the package does not export.
+    - testpackage
+  settings:
+    # Hard rule 2. The standard library, purego and dbimp with its apd, and
+    # nothing else.
+    depguard:
+      rules:
+        main:
+          list-mode: strict
+          allow:
+            - $gostd
+            - github.com/xo/odbc
+            - github.com/ebitengine/purego
+            - github.com/xo/dbimp
+            - github.com/cockroachdb/apd/v3
+    # Hard rule 3.
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^context\.(Background|TODO)$
+          msg: take the context from the caller, never make one here
+        - pattern: ^\(\*database/sql\.(DB|Conn|Tx|Stmt)\)\.(Query|Exec|QueryRow|Prepare)$
+          msg: use the Context form, such as QueryContext
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+    errcheck:
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Stmt).Close
+    gosec:
+      excludes:
+        # unsafe.Pointer and integer sizes cross into the driver manager on
+        # every call, and that is the purpose of the package
+        - G103
+        - G115
+    revive:
+      rules:
+        - name: context-as-argument
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: exported
+        - name: indent-error-flow
+        - name: package-comments
+        - name: receiver-naming
+        - name: var-naming
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - forbidigo
+          - gosec
+          # the tests send text in several scripts on purpose, to check the
+          # conversion of encodings
+          - gosmopolitan
+          # a test names a file in each place it reads one, and a constant
+          # for the name hides what the test checks
+          - goconst
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/xo/odbc
