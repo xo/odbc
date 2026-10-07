@@ -16,7 +16,7 @@ SQL Server is tested on Linux only.
 
 GitHub starts a service container only on a Linux runner. The Windows runner runs Windows containers and the macOS runner has no Docker, so a Linux database image cannot start on either. A native install is the only server a macOS or Windows job can have. SQLite and DuckDB are libraries and need no server, so they run everywhere. PostgreSQL is the baseline, and it runs on all three systems.
 
-The ODBC drivers are installed natively on every system, from the system package manager or from the vendor, and never committed to the repository. A test reads the path of each driver library from an environment variable, connects without a data source name, and skips when the variable is empty.
+The ODBC drivers are installed natively on every system, from the system package manager or from the vendor, and never committed to the repository. A test reads the path of each driver library from an environment variable. It connects without a data source name. It skips when the variable is empty.
 
 ## Rejected
 

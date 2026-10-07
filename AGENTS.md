@@ -39,10 +39,10 @@ always see it.
 4. Every ODBC handle is freed once, by the code that allocated it, and never
    used after. A leaked handle leaks a connection on the server, and a used
    one corrupts memory.
-5. A buffer whose address the driver manager keeps after a call returns, such
-   as one given to `SQLBindCol` or `SQLBindParameter`, stays reachable until
-   the statement is freed or unbound. The Go runtime does not know the manager
-   holds it.
+5. The driver manager can keep the address of a buffer after a call returns.
+   This happens with `SQLBindCol` and `SQLBindParameter`. Keep such a buffer
+   reachable until the statement is freed or unbound. The Go runtime does not
+   know that the manager holds it.
 6. Text crosses the boundary through the wide functions, and only through
    `encode` and `decode` in `wchar.go`, which know the size of `SQLWCHAR`
    (D20). Never build or read a `uint16` string elsewhere.
@@ -67,8 +67,12 @@ always see it.
 | `wchar.go` | the size of `SQLWCHAR`, its probe, and the conversion of strings |
 | `connector.go`, `conn.go`, `tx.go` | the environment, connections and transactions |
 | `stmt.go` | statements and the binding of arguments |
+| `options.go` | the per-statement options of D22 |
+| `list.go` | `Drivers` and `DataSources`, which list what the driver manager knows (D23) |
 | `rows.go` | result sets, the column metadata and the mapping of types (D18) |
-| `errors.go` | the error type, which carries the SQLSTATE |
+| `plan.go`, `block.go` | how each column is read, and the block fetch of `WithFetchSize` (D24) |
+| `catalog.go` | the catalog functions on `odbc.Conn` (D24) |
+| `errors.go` | the error type, which carries the SQLSTATE, and its classes (D23) |
 | `*_test.go` in the root | the unit tests of `ParseDSN` and the tests that keep the documents true |
 | `test/` | a module of its own (D15) with the integration tests. They read one variable for each database and skip a database whose variable is empty |
 
@@ -92,7 +96,7 @@ table in `README.md`.
 
 Every decision is a file in `docs/decisions/`, named `D<nnn>-<title>.md`. It
 opens with its number, its title and its status, and it gives the reason and
-what was rejected. There are 21 decisions so far. Add the row to the index in
+what was rejected. There are 24 decisions so far. Add the row to the index in
 `docs/decisions/README.md` when you add a file, and `TestTheDecisionIndexIsComplete`
 fails if you forget. Never write "see D<n> of another project" in place of a
 reason.

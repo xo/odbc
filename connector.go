@@ -28,27 +28,19 @@ var (
 
 // NewConnector loads the driver manager and allocates an environment.
 func NewConnector(cfg Config) (*Connector, error) {
-	a, err := loadManager(cfg.Manager, cfg.WChar)
+	a, env, err := cfg.environment()
 	if err != nil {
 		return nil, err
 	}
-	c := &Connector{api: a, cfg: cfg}
-	if err := a.check("allocating the environment", a.allocHandle(handleEnv, 0, &c.env), handleEnv, 0); err != nil {
-		return nil, err
-	}
-	if err := a.check("setting the ODBC version", a.setEnvAttr(c.env, attrODBCVersion, odbcVersion3, 0), handleEnv, c.env); err != nil {
-		_ = a.freeHandle(handleEnv, c.env)
-		return nil, err
-	}
-	return c, nil
+	return &Connector{api: a, cfg: cfg, env: env}, nil
 }
 
 // Driver returns the driver.
 func (*Connector) Driver() driver.Driver { return &Driver{} }
 
 // Connect opens a connection. The driver manager cannot cancel a connection
-// that is being made, so the context is checked before the call and its
-// deadline sets the login timeout.
+// that is being made. The context is checked before the call, and its deadline
+// sets the login timeout.
 func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -69,6 +61,17 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		// a driver that ignores the login timeout is not an error
 		_ = a.setConnAttr(dbc, attrLoginTimeout, uintptr(secs), 0)
 	}
+	if c.cfg.TraceFile != "" {
+		file := a.encode(c.cfg.TraceFile)
+		if err := a.check("turning the trace on", a.setConnAttr(dbc, attrTrace, traceOn, 0), handleDbc, dbc); err != nil {
+			_ = a.freeHandle(handleDbc, dbc)
+			return nil, err
+		}
+		if err := a.check("setting the trace file", a.setConnAttrPtr(dbc, attrTraceFile, unsafe.Pointer(&file[0]), nts), handleDbc, dbc); err != nil {
+			_ = a.freeHandle(handleDbc, dbc)
+			return nil, err
+		}
+	}
 	in := a.encode(c.cfg.ConnString)
 	out := make([]byte, 1024*a.wchar)
 	var n int16
@@ -77,7 +80,8 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 		_ = a.freeHandle(handleDbc, dbc)
 		return nil, err
 	}
-	c2 := &conn{api: a, dbc: dbc}
+	c2 := &conn{api: a, dbc: dbc, onWarning: c.cfg.OnWarning, loc: c.cfg.Location}
+	c2.warn("connecting", ret, handleDbc, dbc)
 	name := make([]byte, 128*a.wchar)
 	var nameLen int16
 	// the length of a string that SQLGetInfoW takes is in bytes

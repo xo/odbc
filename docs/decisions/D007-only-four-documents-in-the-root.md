@@ -6,6 +6,6 @@ Status: Decided.
 
 ## Reason
 
-A root that fills with documents has no order. Each document in `docs/` is named in the table of `AGENTS.md` and in the table of `README.md`, so a reader always has one place to start.
+A root that fills with documents has no order. `AGENTS.md` and `README.md` each have a table that names every document in `docs/`. A reader always has one place to start.
 
 `TestTheRootHoldsFourDocuments` and `TestEveryDocumentIsInBothTables` check this.

@@ -7,8 +7,8 @@ here, then open the file.
 Each file opens with its status. "Decided" means Ken chose it. "Proposed"
 means an agent or a peer session suggested it and Ken has not confirmed it.
 "Open" means nobody has chosen yet. A decision that changes an earlier one
-says so in its status, as "Amends" and the number, and the earlier one says it
-back, as "Amended by" and the number. Read the status before the decision.
+says so in its status. It writes "Amends" and the number. The earlier one says
+it back, with "Amended by" and the number. Read the status before the decision.
 
 A new decision gets the next number and a file of its own. Add its row here.
 `TestTheDecisionIndexIsComplete` fails when a decision has no row or a row is
@@ -37,3 +37,6 @@ wrong, and it prints the row to add.
 | [D19](D019-the-driver-adapts-to-a-database-by-its-reported-name.md) | The driver adapts to a database by the name it reports | Decided |
 | [D20](D020-the-driver-finds-the-size-of-sqlwchar-when-it-loads-the-manager.md) | The driver finds the size of SQLWCHAR when it loads the manager | Decided |
 | [D21](D021-the-ci-jobs-test-the-databases-that-each-runner-can-hold.md) | The CI jobs test the databases that each runner can hold | Decided, and amends D13 |
+| [D22](D022-the-driver-takes-the-dbimp-options.md) | The driver takes the dbimp options | Decided |
+| [D23](D023-the-driver-exposes-what-a-tool-needs-to-know-about-the-database.md) | The driver exposes what a tool needs to know about the database | Decided |
+| [D24](D024-the-driver-fetches-in-blocks-reads-the-catalog-and-takes-a-location.md) | The driver fetches in blocks, reads the catalog and takes a location | Decided |

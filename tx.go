@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
+	"fmt"
 	"unsafe"
+
+	"github.com/xo/dbimp"
 )
 
 // Transaction isolation levels of ODBC.
@@ -41,7 +43,7 @@ func (c *conn) begin(opts driver.TxOptions) (driver.Tx, error) {
 		return nil, driver.ErrBadConn
 	}
 	if opts.ReadOnly {
-		return nil, errors.New("beginning a transaction: ODBC has no portable read only transaction")
+		return nil, fmt.Errorf("beginning a transaction: ODBC has no read only transaction that every database driver enforces: %w", dbimp.ErrNotSupported)
 	}
 	t := &tx{c: c}
 	level, err := isolationLevel(sql.IsolationLevel(opts.Isolation))
@@ -79,7 +81,7 @@ func isolationLevel(l sql.IsolationLevel) (uint32, error) {
 	case sql.LevelSerializable:
 		return isoSerializable, nil
 	default:
-		return 0, errors.New("beginning a transaction: the isolation level " + l.String() + " is not supported")
+		return 0, fmt.Errorf("beginning a transaction: the isolation level %s: %w", l, dbimp.ErrNotSupported)
 	}
 }
 

@@ -5,7 +5,10 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"time"
 	"unsafe"
+
+	"github.com/xo/dbimp"
 )
 
 // conn is one connection. database/sql uses it from one goroutine at a time,
@@ -15,8 +18,11 @@ type conn struct {
 	dbc uintptr
 	// dbms is the name the database gives itself, such as DuckDB. It selects
 	// the few quirks of a driver that the ODBC types cannot express.
-	dbms   string
-	closed bool
+	dbms      string
+	onWarning func(*Error)
+	loc       *time.Location
+	inTx      bool
+	closed    bool
 }
 
 var (
@@ -68,8 +74,17 @@ func (c *conn) Ping(ctx context.Context) error {
 // CheckNamedValue implements driver.NamedValueChecker. ODBC parameters are
 // positional.
 func (*conn) CheckNamedValue(nv *driver.NamedValue) error {
+	return checkNamedValue(nv)
+}
+
+// checkNamedValue keeps an Option, which Resolve takes out of the arguments of
+// the statement, and refuses a named argument.
+func checkNamedValue(nv *driver.NamedValue) error {
+	if dbimp.IsOption[options](nv.Value) {
+		return nil
+	}
 	if nv.Name != "" {
-		return errors.New("checking the arguments: ODBC parameters are positional, not named")
+		return fmt.Errorf("checking the arguments: ODBC parameters are positional, not named: %w", dbimp.ErrNotSupported)
 	}
 	return driver.ErrSkip
 }
@@ -174,4 +189,93 @@ func wrapCtx(ctx context.Context, err error) error {
 		return fmt.Errorf("%w: %w", ctx.Err(), err)
 	}
 	return err
+}
+
+// warn passes the diagnostics of a call that succeeded with information to the
+// function of the Config, when it has one (D23).
+func (c *conn) warn(op string, ret int16, handleType int16, handle uintptr) {
+	if ret != sqlSuccessWithInfo || c.onWarning == nil {
+		return
+	}
+	var e *Error
+	if err := c.api.diag(op, ret, handleType, handle); errors.As(err, &e) {
+		c.onWarning(e)
+	}
+}
+
+// InfoType names a kind of information that SQLGetInfo gives.
+type InfoType uint16
+
+// Some of the information types. The ODBC reference lists the others.
+const (
+	InfoDataSourceName      InfoType = 2
+	InfoDriverName          InfoType = 6
+	InfoDriverVersion       InfoType = 7
+	InfoDBMSName            InfoType = 17
+	InfoDBMSVersion         InfoType = 18
+	InfoIdentifierQuoteChar InfoType = 29
+	InfoDriverODBCVersion   InfoType = 77
+)
+
+// Conn is the connection of the driver, which a program reaches through
+// sql.Conn.Raw to ask the database about itself (D23).
+//
+//	conn.Raw(func(dc any) error {
+//		name, err := dc.(odbc.Conn).GetInfoString(odbc.InfoDBMSName)
+//		...
+//	})
+//
+// The type of the answer depends on the information type, and the ODBC
+// reference says which. A text type reads with GetInfoString, a 16 bit number
+// with GetInfoUint16 and a 32 bit number with GetInfoUint32.
+//
+// Tables, Columns and PrimaryKeys wrap the catalog functions of ODBC, which read
+// the metadata of any database in one way.
+type Conn interface {
+	GetInfoString(info InfoType) (string, error)
+	GetInfoUint16(info InfoType) (uint16, error)
+	GetInfoUint32(info InfoType) (uint32, error)
+	Tables(ctx context.Context, catalog, schema, table, tableTypes string) ([]TableInfo, error)
+	Columns(ctx context.Context, catalog, schema, table, column string) ([]ColumnInfo, error)
+	PrimaryKeys(ctx context.Context, catalog, schema, table string) ([]PrimaryKeyInfo, error)
+}
+
+var _ Conn = (*conn)(nil)
+
+// GetInfoString reads a text value with SQLGetInfo.
+func (c *conn) GetInfoString(info InfoType) (string, error) {
+	if c.closed {
+		return "", driver.ErrBadConn
+	}
+	buf := make([]byte, 512*c.api.wchar)
+	var n int16
+	// the length of a string that SQLGetInfoW takes is in bytes
+	ret := c.api.getInfo(c.dbc, uint16(info), unsafe.Pointer(&buf[0]), int16(len(buf)), &n)
+	if err := c.api.check("reading information", ret, handleDbc, c.dbc); err != nil {
+		return "", err
+	}
+	return c.api.decode(buf[:min(int(n), len(buf))]), nil
+}
+
+// GetInfoUint16 reads a 16 bit number with SQLGetInfo.
+func (c *conn) GetInfoUint16(info InfoType) (uint16, error) {
+	var v uint16
+	err := c.getInfoNumber(info, unsafe.Pointer(&v))
+	return v, err
+}
+
+// GetInfoUint32 reads a 32 bit number with SQLGetInfo.
+func (c *conn) GetInfoUint32(info InfoType) (uint32, error) {
+	var v uint32
+	err := c.getInfoNumber(info, unsafe.Pointer(&v))
+	return v, err
+}
+
+func (c *conn) getInfoNumber(info InfoType, p unsafe.Pointer) error {
+	if c.closed {
+		return driver.ErrBadConn
+	}
+	var n int16
+	ret := c.api.getInfo(c.dbc, uint16(info), p, 0, &n)
+	return c.api.check("reading information", ret, handleDbc, c.dbc)
 }

@@ -4,16 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"testing"
 	"time"
 )
 
-// open opens the database named by an environment variable, and skips the
-// test when it is empty. The value is a data source name for this driver.
+// open opens the database of the product whose environment variable is env,
+// and skips the test when the environment names none (see dsnOf).
 func open(t *testing.T, env string) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv(env)
+	var dsn string
+	for _, p := range products {
+		if p.env == env {
+			dsn = dsnOf(t, p)
+		}
+	}
 	if dsn == "" {
 		t.Skipf("%s is not set", env)
 	}
@@ -31,8 +35,8 @@ func open(t *testing.T, env string) *sql.DB {
 }
 
 // TestPostgres runs the statements that a program meets first against
-// PostgreSQL: parameters, a long string, a transaction, a prepared statement,
-// an error, column types and a canceled query.
+// PostgreSQL. They use parameters, a long string, a transaction, a prepared
+// statement, an error, column types and a canceled query.
 func TestPostgres(t *testing.T) {
 	db := open(t, "ODBC_POSTGRES")
 	ctx := t.Context()
@@ -158,9 +162,9 @@ func TestPostgres(t *testing.T) {
 	}
 }
 
-// TestBasics runs the same few statements against every database that has
-// a data source name in its environment variable: a table, parameters, NULL,
-// a transaction and a prepared statement.
+// TestBasics runs the same few statements against every database that has a
+// data source name in its environment variable. They use a table, parameters,
+// NULL, a transaction and a prepared statement.
 func TestBasics(t *testing.T) {
 	for _, env := range []string{"ODBC_SQLITE", "ODBC_MARIADB", "ODBC_MYSQL", "ODBC_SQLSERVER", "ODBC_POSTGRES"} {
 		t.Run(env, func(t *testing.T) {

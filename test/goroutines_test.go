@@ -9,8 +9,8 @@ import (
 	"github.com/xo/dbimp/dbimptest"
 )
 
-// TestNoGoroutineLeaks runs queries to the end, abandons some, cancels one and
-// closes the database, and checks that no goroutine of the driver is left
+// TestNoGoroutineLeaks runs queries to the end, abandons some and cancels one.
+// It closes the database and checks that no goroutine of the driver is left
 // (step 12 of dbimp's DRIVER.md). A watcher that is not stopped shows here.
 func TestNoGoroutineLeaks(t *testing.T) {
 	each(t, func(t *testing.T, p product, db *sql.DB) {

@@ -11,9 +11,10 @@ import (
 	"github.com/xo/dbmeta"
 )
 
-// TestFixture builds the dbmeta fixture of each database through the driver,
-// asks dbmeta for the version of the server, and runs every query that dbmeta
-// answers for it. A statement that the driver cannot run is a finding.
+// TestFixture builds the dbmeta fixture of each database through the driver.
+// It asks dbmeta for the version of the server. It then runs every query that
+// dbmeta answers for that version. A statement that the driver cannot run is a
+// finding.
 func TestFixture(t *testing.T) {
 	each(t, func(t *testing.T, p product, db *sql.DB) {
 		ctx := t.Context()

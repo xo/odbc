@@ -6,7 +6,7 @@ One driver, MariaDB Connector/ODBC, is used to test both the MySQL server and th
 
 ## Reason
 
-Ken chose it. The MariaDB driver speaks the protocol of both servers. The MySQL driver in the Arch User Repository is version 8.0.32, nearly four years old, and one driver halves the work of installing and testing on three systems.
+Ken chose it. The MariaDB driver speaks the protocol of both servers. The MySQL driver in the Arch User Repository is version 8.0.32, which is nearly four years old. One driver halves the work of installing and testing on three systems.
 
 ## Rejected
 

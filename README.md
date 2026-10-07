@@ -2,6 +2,7 @@
   <a href="#about" title="About">About</a> |
   <a href="#installing" title="Installing">Installing</a> |
   <a href="#using" title="Using">Using</a> |
+  <a href="#faq" title="FAQ">FAQ</a> |
   <a href="#platforms" title="Platforms">Platforms</a> |
   <a href="#testing" title="Testing">Testing</a> |
   <a href="#documents" title="Documents">Documents</a> |
@@ -26,9 +27,12 @@
 
 # About
 
-`odbc` is a `database/sql` driver for ODBC, written in pure Go. It loads the
-ODBC driver manager of the system at run time with [`purego`][purego], so it
-needs no cgo and no C compiler. One code base serves Windows, macOS and Linux.
+`odbc` is a `database/sql` driver for ODBC, written in pure Go. ODBC is a
+standard way for a program to talk to a database. The driver loads the ODBC
+driver manager of the system at run time with [`purego`][purego]. The driver
+manager is the system library that finds the database drivers and calls them.
+The driver needs no cgo and no C compiler. One code base serves Windows, macOS
+and Linux.
 
 The driver works on Linux against PostgreSQL, MariaDB, MySQL, SQL Server and
 SQLite. It has not run on macOS or Windows yet, and DuckDB is not tested.
@@ -56,15 +60,104 @@ import (
 db, err := sql.Open("odbc", "odbc+PostgreSQL+Unicode://user:pass@localhost:5432/dbname")
 ```
 
-The data source name is a URL whose scheme is `odbc+<driver>`, with a plus
-sign for each space in the name that the driver manager knows. It can also be
-an ODBC connection string, such as `DRIVER={SQLite3};Database=/tmp/a.db`. The
+The data source name is a URL with the scheme `odbc+<driver>`. Write the driver
+name as the driver manager knows it, with a plus sign for each space. The name
+can also be an ODBC connection string, such as `DRIVER={SQLite3};Database=/tmp/a.db`. The
 query key `driver` names a library by its path, and `manager` names the driver
 manager. See D16 for the rest.
 
-Placeholders are `?`. Values have the Go types of the `dbimp` kinds: a decimal
+Placeholders are `?`. Values have the Go types of the `dbimp` kinds. A decimal
 is a `*apd.Decimal`, a date is a `dbimp.Date`, and a timestamp with no zone is
 a `dbimp.LocalDateTime`. D18 has the whole table.
+
+A statement takes options as arguments or through the context. They are
+`odbc.WithTimeout`, `odbc.WithDatabase`, `odbc.WithReadonly` and
+`odbc.WithParameter`, as in the other `dbimp` drivers. A database driver that
+cannot honor an option makes the statement fail with `dbimp.ErrNotSupported`.
+D22 has the rules.
+
+A tool can ask the driver about the database. `odbc.Drivers` and
+`odbc.DataSources` list what the driver manager knows. `odbc.Conn`, which
+`sql.Conn.Raw` gives, wraps `SQLGetInfo`. `Config.OnWarning` receives the
+informational diagnostics of a statement, and `Config.TraceFile` turns on the
+trace of the driver manager. `errors.Is(err, odbc.ErrIntegrity)` tests a class
+of SQLSTATE. D23 has the rules.
+
+`odbc.WithFetchSize` reads a large result in blocks, `odbc.WithMaxRows` limits
+it, and `Config.Location` makes a timestamp a `time.Time` in a location.
+`odbc.Conn` also has `Tables`, `Columns` and `PrimaryKeys`, which read the
+metadata of any database. D24 has the rules.
+
+# FAQ
+
+## How do I turn on ANSI SQL mode for MariaDB and MySQL?
+
+MariaDB and MySQL read double quotes as text, and `||` as a logical or, unless
+the session is in ANSI SQL mode. Turn the mode on with the `INITSTMT` key, which
+runs a statement each time a connection opens:
+
+```
+odbc+MariaDB://user:pass@host:3306/db?INITSTMT=SET+SESSION+sql_mode%3D%27ANSI%27
+```
+
+In a connection string, put the statement in braces:
+
+```
+DRIVER={MariaDB Unicode};SERVER=host;PORT=3306;UID=user;PWD=pass;DATABASE=db;INITSTMT={SET SESSION sql_mode='ANSI'}
+```
+
+[`usql`][usql] takes the same URL:
+
+```sh
+usql 'odbc+MariaDB+Unicode://user:pass@host:3306/db?INITSTMT=SET+SESSION+sql_mode%3D%27ANSI%27'
+```
+
+To check it, run `SELECT @@sql_mode`. The answer holds `ANSI` and `ANSI_QUOTES`,
+and `SELECT "name" FROM "table"` reads a column and a table. On MariaDB the
+answer is `REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI`.
+
+- `INITSTMT` is a key of the ODBC driver of the database and not of this driver.
+  It works the same for any Go ODBC driver that sends the connection string on.
+- It runs on every connection that a pool opens, so every session has the mode.
+  To change one session, run `SET SESSION sql_mode='ANSI'` as a statement.
+- The word ANSI also names a kind of ODBC driver, as in "MariaDB ANSI" and
+  "MariaDB Unicode". That is a different setting. This driver calls the wide
+  functions, so it needs the Unicode driver.
+- `TestInitStmt` runs the setting against MariaDB and MySQL, with the MariaDB
+  driver for both (D14). MySQL Connector/ODBC documents the same key, and the
+  tests do not run it.
+
+## How do I pass another setting to an ODBC driver?
+
+Every ODBC driver has its own keys. Add one to the query of the URL, or to the
+connection string, and this driver passes it on. A value that holds a space, an
+equals sign or a semicolon is put in braces for you when you use the URL form.
+The keys `driver`, `manager` and `wchar` are the exceptions. They configure this
+driver, and D16 and D20 describe them.
+
+## How do I find the name of an ODBC driver?
+
+Call `odbc.Drivers`, which lists every driver that the driver manager knows, with
+its name and its attributes. On Linux and macOS, `odbcinst -q -d` prints the same
+names. A driver that is not registered can be named by the path of its library,
+as in `?driver=/usr/lib/psqlodbcw.so`, on Linux and macOS.
+
+## Which placeholder does a statement take?
+
+Whatever the database takes, and for every database that the tests use it is `?`.
+The driver passes the text of the statement on as it is. `psqlODBC` rejects `$1`
+(D16).
+
+## Why is a timestamp a `dbimp.LocalDateTime`?
+
+An ODBC timestamp has no time zone, and a `time.Time` always has one. A
+`time.Time` here claims a zone that the database did not state. D18 gives the Go type of each kind. Set `Config.Location`
+to get a `time.Time` in a location instead (D24).
+
+## How do I see what the driver manager does?
+
+Set `Config.TraceFile`. The driver manager then writes every ODBC call to that
+file (D23).
 
 # Platforms
 
@@ -104,7 +197,7 @@ SQL Server is tested on Linux only.
 
 # Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 21 decisions so far.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 24 decisions so far.
 
 <br/>
 
@@ -123,4 +216,5 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 21 decisions so far.
 
 
 [purego]: https://github.com/ebitengine/purego "purego"
+[usql]: https://github.com/xo/usql "usql"
 [dbimp]: https://github.com/xo/dbimp "dbimp"

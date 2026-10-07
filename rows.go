@@ -31,12 +31,17 @@ type column struct {
 
 // rows is a result set. It reads one row at a time.
 type rows struct {
-	ctx    context.Context //nolint:containedctx // the context of the query bounds every fetch
-	s      *stmt
-	cols   []column
-	row    []driver.Value
+	ctx   context.Context //nolint:containedctx // the context of the query bounds every fetch
+	s     *stmt
+	cols  []column
+	plans []plan
+	row   []driver.Value
+	// blk is set when the rows are fetched in blocks (D24).
+	blk    *block
 	own    bool
 	closed bool
+	// undo puts the connection back as the options of the statement changed it.
+	undo func()
 }
 
 var (
@@ -66,6 +71,7 @@ const (
 	tTypeDate      = 91
 	tTypeTime      = 92
 	tTypeTimestamp = 93
+	tGUID          = -11
 	tSSTime        = -154
 	tSSOffset      = -155
 	tLongVarchar   = -1
@@ -130,6 +136,10 @@ func (r *rows) describe() error {
 		}
 		r.cols[i] = c
 	}
+	r.plans = make([]plan, len(r.cols))
+	for i, c := range r.cols {
+		r.plans[i] = r.planFor(c)
+	}
 	return nil
 }
 
@@ -149,6 +159,8 @@ func (r *rows) Close() error {
 	}
 	r.closed = true
 	a := r.s.c.api
+	defer r.undo()
+	r.disableBlock()
 	if r.own {
 		return r.s.free()
 	}
@@ -171,6 +183,9 @@ func (r *rows) NextRow() error {
 	if r.closed {
 		return errClosed
 	}
+	if r.blk != nil {
+		return r.nextBlockRow()
+	}
 	a, h := r.s.c.api, r.s.h
 	stop := r.s.c.watch(r.ctx, h)
 	ret := a.fetch(h)
@@ -181,6 +196,7 @@ func (r *rows) NextRow() error {
 	if err := a.check("fetching", ret, handleStmt, h); err != nil {
 		return wrapCtx(r.ctx, err)
 	}
+	r.s.c.warn("fetching", ret, handleStmt, h)
 	if len(r.row) != len(r.cols) {
 		r.row = make([]driver.Value, len(r.cols))
 	}
@@ -208,6 +224,7 @@ func (*rows) HasNextResultSet() bool { return true }
 // NextResultSet implements driver.RowsNextResultSet.
 func (r *rows) NextResultSet() error {
 	a, h := r.s.c.api, r.s.h
+	r.disableBlock()
 	ret := a.moreResults(h)
 	if ret == sqlNoData {
 		return io.EOF
@@ -221,107 +238,20 @@ func (r *rows) NextResultSet() error {
 // read reads column i of the current row.
 func (r *rows) read(i int) (driver.Value, error) {
 	col := uint16(i + 1)
-	c := r.cols[i]
-	if c.boolText && c.sqlType != tBit {
-		text, null, err := r.text(col)
+	p := r.plans[i]
+	if p.size > 0 {
+		raw := make([]byte, p.size)
+		null, err := r.fixed(col, p.ctype, unsafe.Pointer(&raw[0]), p.size)
 		if err != nil || null {
 			return nil, err
 		}
-		switch strings.ToLower(text) {
-		case "t", "true", "1", "y", "yes":
-			return true, nil
-		case "f", "false", "0", "n", "no":
-			return false, nil
-		}
-		return nil, fmt.Errorf("reading %q as a boolean", text)
+		return p.conv(raw)
 	}
-	switch c.sqlType {
-	case tBigint:
-		if c.unsigned {
-			var v uint64
-			null, err := r.fixed(col, cUBigint, unsafe.Pointer(&v), 8)
-			if err != nil || null {
-				return nil, err
-			}
-			return v, nil
-		}
-		fallthrough
-	case tTinyint, tSmallint, tInteger, tBit:
-		var v int64
-		null, err := r.fixed(col, cSBigint, unsafe.Pointer(&v), 8)
-		switch {
-		case err != nil || null:
-			return nil, err
-		case c.sqlType == tBit:
-			return v != 0, nil
-		}
-		return v, nil
-	case tReal, tFloat, tDouble:
-		var v float64
-		null, err := r.fixed(col, cDouble, unsafe.Pointer(&v), 8)
-		if err != nil || null {
-			return nil, err
-		}
-		return v, nil
-	case tDate, tTypeDate:
-		var ts timestamp
-		null, err := r.fixed(col, cTimestamp, unsafe.Pointer(&ts), int(unsafe.Sizeof(ts)))
-		if err != nil || null {
-			return nil, err
-		}
-		return dbimp.Date{Year: int(ts.Year), Month: time.Month(ts.Month), Day: int(ts.Day)}, nil
-	case tTypeTimestamp:
-		var ts timestamp
-		null, err := r.fixed(col, cTimestamp, unsafe.Pointer(&ts), int(unsafe.Sizeof(ts)))
-		if err != nil || null {
-			return nil, err
-		}
-		return dbimp.LocalDateTime{
-			Date: dbimp.Date{Year: int(ts.Year), Month: time.Month(ts.Month), Day: int(ts.Day)},
-			Time: dbimp.LocalTime{Hour: int(ts.Hour), Minute: int(ts.Minute), Second: int(ts.Second), Nanosecond: int(ts.Fraction)},
-		}, nil
-	case tBinary, tVarbinary, tLongVarbinary:
-		b, null, err := r.chunks(col, cBinary, 0)
-		if err != nil || null {
-			return nil, err
-		}
-		return b, nil
-	}
-	text, null, err := r.text(col)
+	raw, null, err := r.chunks(col, p.ctype, p.term)
 	if err != nil || null {
 		return nil, err
 	}
-	switch c.sqlType {
-	case tDecimal, tNumeric:
-		d, _, err := apd.NewFromString(text)
-		if err != nil {
-			return nil, fmt.Errorf("reading %q as a decimal: %w", text, err)
-		}
-		return d, nil
-	case tTime, tTypeTime, tSSTime:
-		t, err := dbimp.ParseLocalTime(text)
-		if err != nil {
-			return nil, err
-		}
-		return t, nil
-	case tSSOffset:
-		t, err := time.Parse("2006-01-02 15:04:05.999999999 -07:00", text)
-		if err != nil {
-			return nil, fmt.Errorf("reading %q as a timestamp with an offset: %w", text, err)
-		}
-		return t, nil
-	}
-	return text, nil
-}
-
-// text reads a value as text.
-func (r *rows) text(col uint16) (s string, null bool, err error) {
-	a := r.s.c.api
-	b, null, err := r.chunks(col, cWChar, a.wchar)
-	if err != nil || null {
-		return "", null, err
-	}
-	return a.decode(b), false, nil
+	return p.conv(raw)
 }
 
 // fixed reads a value of a fixed size.

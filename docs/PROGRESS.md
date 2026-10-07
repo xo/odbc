@@ -17,22 +17,23 @@ committed. The work is staged for Ken to review.
 | macOS 15 (Intel, MacPorts) | PostgreSQL and DuckDB |
 | macOS 26 (Apple silicon, Homebrew) | PostgreSQL, MariaDB, MySQL, SQLite and DuckDB |
 
-SQL Server is tested on Linux only (D13). MariaDB, MySQL and SQLite are not
-tested in the Intel macOS VM, because MacPorts has no driver for them, and an
-Apple silicon Mac with Homebrew covers them.
+SQL Server is tested on Linux only (D13). MacPorts has no driver for MariaDB,
+MySQL or SQLite, so the Intel macOS VM does not test them. An Apple silicon Mac
+with Homebrew tests them.
 
 Done:
 
 - The project setup: the documents, the skills, the decisions, the lint
   configuration and the workflow.
-- The driver: loading the driver manager with `purego`, the connector, the
-  connection, prepared and direct statements with bound parameters, rows with
-  chunked reads, transactions with isolation levels, cancellation through the
-  context, and errors that carry the SQLSTATE.
+- The driver loads the driver manager with `purego`. It has a connector,
+  connections, and prepared and direct statements with bound parameters. Rows
+  are read in chunks. Transactions have isolation levels. A canceled context
+  cancels the statement. Errors carry the SQLSTATE, which is the five character
+  code that a database gives each error.
 - The types follow D18, and the few quirks of a driver follow D19.
 - The `test/` module of D15. It runs the `dbmeta` fixture of each database and
-  every `dbmeta` query that the database answers, round trips each kind of
-  value through `dbimptest.RoundTrip`, and checks for leaked goroutines.
+  every `dbmeta` query that the database answers. It round trips each kind of
+  value through `dbimptest.RoundTrip`. It also checks for leaked goroutines.
 
 The CI workflow is written for all three systems (D21) and passes `actionlint`. It
 has not run on a GitHub runner. The first run is the next step. See

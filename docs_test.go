@@ -12,7 +12,7 @@ import (
 )
 
 // These tests read the repository and not the package. They keep the
-// documents true: a link that breaks, an index that falls behind or a count
+// documents true. A link that breaks, an index that falls behind or a count
 // that goes stale is found here and not by a reader.
 
 var (

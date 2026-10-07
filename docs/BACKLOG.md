@@ -13,17 +13,17 @@ None open.
 
 ### Tests
 
-- Add the types that the round trip does not cover yet: a literal for binary
-  values, SQL Server `datetimeoffset` and the variant type, and an interval.
+- Add the types that the round trip does not cover yet. They are a literal for
+  binary values, SQL Server `datetimeoffset`, the SQL Server variant type, and
+  an interval.
 - Run `dbimptest.TypeTable` and `InterfaceTable` to write the type table and the
   interface table into `docs/`.
-- Test the types that D18 leaves open: `TIME`, the SQL Server types for a time
-  with an offset and for a variant, a GUID (as text, and as an argument for each database), an unsigned `BIGINT`, and long text
-  and binary on each driver.
 - Write a contract test and a fuzz test for `ParseDSN`.
 
 ### Driver
 
+- Make `WithReadonly` work for a database that has a statement for it, chosen by
+  the name the database reports (D22).
 - Report `driver.ErrBadConn` only when a statement did not reach the server.
   `ResetSession` and `Ping` return it today, and nothing else does.
 - Read a PostgreSQL `timestamptz` with its zone. `psqlODBC` reports it as a
@@ -31,9 +31,9 @@ None open.
 
 ### Known limits
 
-- The Homebrew SQLite ODBC driver cuts each character of the text of a statement
-  to its low byte, so a literal with non-ASCII text is wrong on macOS. An argument
-  is fine. The round trip test skips that case there.
+- The Homebrew SQLite ODBC driver cuts each character of a statement to its low
+  byte. Non-ASCII text in a literal is wrong on macOS. An argument is fine. The
+  round trip test skips that case there.
 - A manager of 4 bytes (`iODBC`) works, but the Homebrew database drivers are
   built for `unixODBC` and read its text wrongly (D20). Test with a driver built
   for `iODBC` if one exists.
@@ -51,7 +51,7 @@ None open.
   `psqlODBC` for macOS.
 - Write the install steps for each ODBC driver on each system, with the
   environment variable that names the library. Check that the macOS and
-  Windows runners ship PostgreSQL, MySQL and MariaDB, and that each driver has
+  Windows runners ship PostgreSQL, MySQL and MariaDB. Check that each driver has
   a macOS arm64 build and a 64-bit Windows build.
 - Check the license of the Microsoft ODBC driver, and the flags that accept it
   in CI on each system.

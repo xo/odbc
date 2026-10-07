@@ -177,12 +177,14 @@ jobs:
         run: go run ./cmd/dbrun start postgres mariadb mysql sqlserver
 
       - name: Name the servers and the drivers
-        # dbrun prints the URL of each server. The driver names are the ones
-        # that the packages above register.
+        # dbrun prints the URL of each server, after a line that names the
+        # release, so the sed keeps the JSON alone. The driver names are the
+        # ones that the packages above register.
         working-directory: dbmeta/test
         run: |
           for name in postgres mariadb mysql sqlserver; do
-            url=$(go run ./cmd/dbrun dsn --json "$name" 2>/dev/null | jq -r '.[0].url')
+            url=$(go run ./cmd/dbrun dsn --json "$name" 2>/dev/null | sed -n '/^\[/,$p' | jq -r '.[0].url')
+            test -n "$url"
             echo "ODBC_${name^^}_URL=$url" >> "$GITHUB_ENV"
           done
           {
@@ -314,11 +316,11 @@ jobs:
           & "$mysql\mysqld.exe" --initialize-insecure --datadir="$env:RUNNER_TEMP\mysql"
           Start-Process "$mysql\mysqld.exe" -ArgumentList "--datadir=$env:RUNNER_TEMP\mysql","--port=55018","--console" -RedirectStandardError "$env:RUNNER_TEMP\mysql.log"
           for ($i = 0; $i -lt 60; $i++) {
-            & "$mysql\mysql.exe" -uroot -h127.0.0.1 -P55018 -e "SELECT 1" 2>$null
+            & "$mysql\mysql.exe" --user=root --host=127.0.0.1 --port=55018 --execute="SELECT 1" 2>$null
             if ($LASTEXITCODE -eq 0) { break }
             Start-Sleep -Seconds 1
           }
-          & "$mysql\mysql.exe" -uroot -h127.0.0.1 -P55018 -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'P4ssw0rd'"
+          & "$mysql\mysql.exe" --user=root --host=127.0.0.1 --port=55018 --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY 'P4ssw0rd'"
 
       - name: Name the servers and the drivers
         run: |

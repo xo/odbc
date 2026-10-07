@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"time"
 	"unsafe"
+
+	"github.com/xo/dbimp"
 )
 
 // stmt is a statement handle. A prepared one lives until Close. One made for a
@@ -33,10 +35,7 @@ func (*stmt) NumInput() int { return -1 }
 
 // CheckNamedValue implements driver.NamedValueChecker.
 func (*stmt) CheckNamedValue(nv *driver.NamedValue) error {
-	if nv.Name != "" {
-		return errors.New("checking the arguments: ODBC parameters are positional, not named")
-	}
-	return driver.ErrSkip
+	return checkNamedValue(nv)
 }
 
 // Close implements driver.Stmt.
@@ -80,14 +79,27 @@ func (result) LastInsertId() (int64, error) {
 func (r result) RowsAffected() (int64, error) { return r.n, nil }
 
 // run binds the arguments and executes the statement.
-func (s *stmt) run(ctx context.Context, args []driver.NamedValue) error {
+// run binds the arguments, applies the options and executes the statement. It
+// returns a function that puts the connection back as the options changed it.
+// The caller runs it when the statement is done, and after the result is read,
+// because a driver does not change the catalog under an open result.
+func (s *stmt) run(ctx context.Context, args []driver.NamedValue) (undo func(), o options, err error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, o, err
 	}
 	a := s.c.api
+	o, args = dbimp.Resolve(ctx, options{}, args)
+	if err := o.check(); err != nil {
+		return nil, o, err
+	}
+	undo, err = s.apply(o)
+	if err != nil {
+		return nil, o, err
+	}
 	ps, err := s.bind(args)
 	if err != nil {
-		return err
+		undo()
+		return nil, o, err
 	}
 	stop := s.c.watch(ctx, s.h)
 	var ret int16
@@ -101,26 +113,29 @@ func (s *stmt) run(ctx context.Context, args []driver.NamedValue) error {
 	// The driver manager can hold the addresses of the parameters until the
 	// statement is executed or reset.
 	runtime.KeepAlive(ps)
-	op := "executing"
 	if ret == sqlNoData {
 		// an update or delete that matched no row
 		ret = sqlSuccess
 	}
-	if err := a.check(op, ret, handleStmt, s.h); err != nil {
+	if err := a.check("executing", ret, handleStmt, s.h); err != nil {
 		_ = a.freeStmt(s.h, resetParams)
-		return wrapCtx(ctx, err)
+		undo()
+		return nil, o, wrapCtx(ctx, err)
 	}
-	return nil
+	s.c.warn("executing", ret, handleStmt, s.h)
+	return undo, o, nil
 }
 
 func (s *stmt) exec(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
-	if err := s.run(ctx, args); err != nil {
+	undo, _, err := s.run(ctx, args)
+	if err != nil {
 		return nil, err
 	}
 	a := s.c.api
 	defer func() {
 		_ = a.freeStmt(s.h, closeCursor)
 		_ = a.freeStmt(s.h, resetParams)
+		undo()
 	}()
 	var n int
 	if err := a.check("counting the rows affected", a.rowCount(s.h, &n), handleStmt, s.h); err != nil {
@@ -130,16 +145,21 @@ func (s *stmt) exec(ctx context.Context, args []driver.NamedValue) (driver.Resul
 }
 
 func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (*rows, error) {
-	if err := s.run(ctx, args); err != nil {
+	undo, o, err := s.run(ctx, args)
+	if err != nil {
 		return nil, err
 	}
-	r := &rows{ctx: ctx, s: s}
+	r := &rows{ctx: ctx, s: s, undo: undo}
 	if err := r.describe(); err != nil {
 		_ = s.c.api.freeStmt(s.h, closeCursor)
+		undo()
 		return nil, err
 	}
 	// the parameters are not needed once the statement has run
 	_ = s.c.api.freeStmt(s.h, resetParams)
+	if o.fetchSize > 1 {
+		r.enableBlock(o.fetchSize)
+	}
 	return r, nil
 }
 
@@ -251,6 +271,9 @@ func (s *stmt) bind(args []driver.NamedValue) ([]*param, error) {
 			}
 			ptr, length, p.ind = unsafe.Pointer(&p.buf[0]), len(p.buf), len(v)
 		case time.Time:
+			if s.c.loc != nil {
+				v = v.In(s.c.loc)
+			}
 			p.ts = timestamp{
 				Year: int16(v.Year()), Month: uint16(v.Month()), Day: uint16(v.Day()),
 				Hour: uint16(v.Hour()), Minute: uint16(v.Minute()), Second: uint16(v.Second()),

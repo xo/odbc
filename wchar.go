@@ -59,9 +59,9 @@ func (a *api) decode(b []byte) string {
 func (a *api) units(n int) int { return n / a.wchar }
 
 // widthOfState reads the SQLSTATE that SQLGetDiagRecW wrote and says how wide
-// its characters are. A SQLSTATE is five characters of ASCII, so a 2 byte
-// buffer holds the character in each pair of bytes, and a 4 byte buffer in each
-// four. It reports false when the bytes fit neither or both.
+// its characters are. A SQLSTATE is five characters of ASCII. A 2 byte buffer
+// holds one character in each pair of bytes, and a 4 byte buffer holds one in
+// each four. It reports false when the bytes fit neither width or both.
 func widthOfState(b []byte) (int, bool) {
 	if len(b) < 20 {
 		return 0, false
@@ -86,8 +86,8 @@ func widthOfState(b []byte) (int, bool) {
 
 // probeWidth asks the manager for a diagnostic that it makes itself, an
 // invalid attribute of the environment, and reads the width from its SQLSTATE.
-// The state buffer has room for six characters of 4 bytes, because
-// SQLGetDiagRecW takes no length for it and a 4 byte manager writes that much.
+// SQLGetDiagRecW takes no length for the state, and a 4 byte manager writes six
+// characters of 4 bytes. So the state buffer has room for that much.
 func (a *api) probeWidth() (int, error) {
 	var env uintptr
 	if ret := a.allocHandle(handleEnv, 0, &env); ret != sqlSuccess && ret != sqlSuccessWithInfo {

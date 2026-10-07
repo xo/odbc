@@ -6,7 +6,7 @@ Every change to the code that loads or calls the driver manager is tested on Win
 
 ## Reason
 
-The point of the project is that one code base behaves the same on all three. A test on Linux alone cannot show that, and the faults that matter here, such as a wrong calling convention or a wrong `SQLWCHAR` size, appear on one system and not another.
+The point of the project is that one code base behaves the same on all three. A test on Linux alone cannot show that. The faults that matter here appear on one system and not another. Examples are a wrong calling convention and a wrong `SQLWCHAR` size.
 
 ## Consequence
 

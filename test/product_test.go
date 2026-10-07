@@ -22,7 +22,7 @@ import (
 	sqfixture "github.com/xo/dbmeta/models/sqlite3/fixture"
 	_ "github.com/xo/dbmeta/models/sqlserver"
 	msfixture "github.com/xo/dbmeta/models/sqlserver/fixture"
-	_ "github.com/xo/odbc"
+	"github.com/xo/odbc"
 )
 
 // step is one statement of a fixture, with its name.
@@ -232,4 +232,26 @@ func fromURL(p product, raw, driver string) (string, error) {
 		dsn += "?" + out.Encode()
 	}
 	return dsn, nil
+}
+
+// openWith opens the database of a product through a connector whose Config the
+// caller changes, and skips the test when the environment names no database.
+func openWith(t *testing.T, p product, change func(*odbc.Config)) *sql.DB {
+	t.Helper()
+	dsn := dsnOf(t, p)
+	if dsn == "" {
+		t.Skipf("%s is not set", p.env)
+	}
+	cfg, err := odbc.ParseDSN(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change(&cfg)
+	c, err := odbc.NewConnector(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sql.OpenDB(c)
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }

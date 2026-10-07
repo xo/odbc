@@ -2,7 +2,7 @@
 
 Status: Decided.
 
-The integration tests live in `test/`, a module of their own. It imports `github.com/xo/dbmeta` for its fixtures, which build a schema with tables, keys, views, indexes and rows for each of the test databases. The root module imports `purego` and nothing else, so D4 holds for it.
+The integration tests live in `test/`, a module of their own. It imports `github.com/xo/dbmeta` for its fixtures, which build a schema with tables, keys, views, indexes and rows for each of the test databases. The root module does not import `dbmeta`, so D4 holds for it. D17 later added `dbimp` to the root module.
 
 ## Reason
 
@@ -17,7 +17,7 @@ A test module keeps the dependency out of the driver. A program that imports `od
 
 ## Notes
 
-- `dbmeta` agrees with the split. It does not add a type fixture to itself, because a fixture makes objects for metadata queries and a round trip of values is a driver concern. This project writes its own table with one column per ODBC type.
+- `dbmeta` agrees with the split. It does not add a type fixture to itself. A fixture makes objects for metadata queries, and a round trip of values is a driver concern. This project writes its own table with one column per ODBC type.
 - A fixture is `models/<db>/fixture`. `fixture.Everything.ResolveSetup(versions)` returns plain SQL steps, and a `dbmeta.VersionSet` is built without running a query. A step that this driver cannot run is a finding.
 - `dbmeta` is at v0, so the test module pins a tag.
 - `dbrun` is not tagged, so CI checks out `dbmeta` at a pinned commit and runs `go run ./cmd/dbrun` in its `test` folder.

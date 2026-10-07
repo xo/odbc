@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config is what a data source name holds once it is parsed.
@@ -18,6 +19,18 @@ type Config struct {
 	Manager string
 	// WChar is the size of SQLWCHAR in bytes, 2 or 4. It is 0 to detect it.
 	WChar int
+	// TraceFile is the file that the driver manager writes its trace to. An
+	// empty name leaves the trace off (D23).
+	TraceFile string
+	// OnWarning is called with each informational diagnostic that a connection
+	// or a statement returns with a success code, such as a message that the
+	// database printed. It runs on the goroutine of the call, so it must
+	// return quickly. Nil ignores them (D23).
+	OnWarning func(*Error)
+	// Location, when it is set, makes a timestamp a time.Time in that location,
+	// and sends a time.Time as its time in that location. When it is nil, a
+	// timestamp is a dbimp.LocalDateTime, as D18 says (D24).
+	Location *time.Location
 }
 
 // ParseDSN parses a data source name. Two forms are accepted.
@@ -31,7 +44,7 @@ type Config struct {
 // The path is the database name, or the instance and then the database name.
 // An instance becomes part of the server, as host\instance. The query keys
 // become keys of the connection string. The key driver replaces the driver
-// name, so it can be the path of a library, and the key manager is the path of
+// name, and it can be the path of a library. The key manager is the path of
 // the driver manager, and the key wchar is the size of SQLWCHAR in bytes, 2 or
 // 4, for a manager that the driver cannot probe. Neither is passed on.
 //

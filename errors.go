@@ -41,11 +41,48 @@ func (e *Error) Unwrap() []error {
 	return out
 }
 
+// ClassError is a class of SQLSTATE, which is the first two characters of the state,
+// or three for a timeout. errors.Is(err, odbc.ErrIntegrity) is true for an
+// Error whose state is in that class. A SQLSTATE class is the same in every
+// database, so a caller can test for it without knowing the database (D23).
+type ClassError string
+
+// Error implements error.
+func (c ClassError) Error() string { return "odbc: SQLSTATE class " + string(c) }
+
+// The classes that a caller tests for most often.
+const (
+	// ErrConnection is a failure of the connection (08).
+	ErrConnection ClassError = "08"
+	// ErrData is a value the database cannot take, such as an overflow (22).
+	ErrData ClassError = "22"
+	// ErrIntegrity is a violation of a constraint, such as a duplicate key (23).
+	ErrIntegrity ClassError = "23"
+	// ErrRollback is a transaction that the database rolled back, such as a
+	// deadlock or a serialization failure (40).
+	ErrRollback ClassError = "40"
+	// ErrSyntax is a syntax error or a refused access (42).
+	ErrSyntax ClassError = "42"
+	// ErrTimeout is a timeout, of a statement or of a login (HYT).
+	ErrTimeout ClassError = "HYT"
+)
+
+// Is reports whether target is a ClassError that the state of e is in.
+func (e *Error) Is(target error) bool {
+	c, ok := target.(ClassError)
+	return ok && strings.HasPrefix(e.State, string(c))
+}
+
 // ConnectionError reports whether the SQLSTATE is in class 08, a failure of
 // the connection.
 func (e *Error) ConnectionError() bool {
 	return strings.HasPrefix(e.State, "08")
 }
+
+// ErrTruncated is the error of a value that does not fit the buffer of its column
+// when the rows are fetched in blocks (D24). The driver reports it and never
+// returns a value that was cut short. Read the result without WithFetchSize.
+const ErrTruncated = closedError("odbc: a value was cut short")
 
 // errClosed is returned when a handle is used after it was freed.
 const errClosed = closedError("odbc: use of a closed handle")

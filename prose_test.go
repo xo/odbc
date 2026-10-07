@@ -11,9 +11,9 @@ import (
 )
 
 // proseRule is one rule of the simple-english skill that a regular expression
-// can check. The skill has more rules than these. Sentence length, the verb
-// after a comma, the voice and one word for one meaning need a person, because
-// a regular expression cannot find a sentence or a part of speech. Gemini and
+// can check. The skill has more rules than these. A regular expression cannot
+// find a sentence or a part of speech. So a person must check the sentence
+// length, the verb after a comma, the voice and one word for one meaning. Gemini and
 // DeepSeek were asked which rules a machine can check, and both drew the line
 // here.
 type proseRule struct {
@@ -165,8 +165,8 @@ func markdownProse(path, text string) []proseLine {
 	return para.flush(out)
 }
 
-// lineComments are the files whose prose is in line comments, by the end of
-// the file name, with the marker that opens a comment in each.
+// lineComments are the files whose prose is in line comments. Each entry has
+// the end of the file name and the marker that opens a comment in that file.
 var lineComments = []struct {
 	suffix string
 	marker *regexp.Regexp
@@ -201,8 +201,8 @@ func commentProse(path, text string, marker *regexp.Regexp) []proseLine {
 	return para.flush(out)
 }
 
-// goProse returns the prose of a Go file: its comments, and the messages it
-// gives a person, which are the text of an error and of a test failure.
+// goProse returns the prose of a Go file. That is its comments, and the
+// messages it gives a person: the text of an error and of a test failure.
 func goProse(t *testing.T, path, text string) []proseLine {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -288,10 +288,10 @@ func isMessage(fun ast.Expr) bool {
 }
 
 // TestProseIsSimpleEnglish checks the rules of the simple-english skill that a
-// machine can check. It reads every document, every Go comment, every message
-// an error or a test gives a person, and every line comment in a YAML or git
-// file. AGENTS.md says to follow the skill for all of that text. The skill
-// itself comes from elsewhere and is not checked.
+// machine can check. It reads every document and every Go comment. It reads
+// every message that an error or a test gives a person. It reads every line
+// comment in a YAML or git file. AGENTS.md says to follow the skill for all of
+// that text. The skill itself comes from elsewhere and is not checked.
 //
 // Text in backticks or in double quotes is not checked, because it is code, a
 // value, or somebody else's words. There is no other exception. If a rule
@@ -326,8 +326,8 @@ func TestProseIsSimpleEnglish(t *testing.T) {
 }
 
 // TestProseMasksWhatIsNotProse checks the scanner against text whose findings
-// are known, so that a mask that grows too wide cannot hide every fault in
-// the repository and pass.
+// are known. A mask that grows too wide hides every fault in the repository,
+// and the scanner then passes. This test catches that.
 func TestProseMasksWhatIsNotProse(t *testing.T) {
 	md := strings.Join([]string{
 		"A query would block.",

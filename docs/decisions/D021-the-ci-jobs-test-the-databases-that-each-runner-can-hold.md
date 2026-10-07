@@ -13,7 +13,7 @@ D13 gives each system its databases. The workflow in `.github/workflows/test.yml
 - macOS does not test MySQL, because the Homebrew formulas of MySQL and MariaDB conflict. The MariaDB Connector/ODBC serves both servers (D14), so the driver is still tested.
 - Windows does not test a MariaDB server. The runner image has MySQL, and the same MariaDB driver connects to it.
 - A test reads the URL of each server from `ODBC_<DATABASE>_URL` and the name or path of each driver from `ODBC_<DATABASE>_DRIVER`. On Linux the URL is the one that `dbrun` prints, from a pinned `dbmeta` commit, which is the commit of `v0.2.0` (D15). The macOS and Windows jobs start their servers themselves.
-- The DuckDB driver, the MariaDB driver for Windows and the SQLite driver for Windows are downloads, and the workflow checks the SHA-256 of each before it runs one. The other drivers come from the package manager of the system.
+- Three drivers are downloads: DuckDB, the MariaDB driver for Windows and the SQLite driver for Windows. The workflow checks the SHA-256 of each before it runs one. The other drivers come from the package manager of the system.
 - Installing the Microsoft driver on Linux sets `ACCEPT_EULA=Y`, which is how that package takes its license.
 
 ## Reason
