@@ -183,6 +183,10 @@ func (r *rows) NextRow() error {
 	if r.closed {
 		return errClosed
 	}
+	if len(r.cols) == 0 {
+		// a statement that returns no result set, such as CREATE TABLE
+		return io.EOF
+	}
 	if r.blk != nil {
 		return r.nextBlockRow()
 	}

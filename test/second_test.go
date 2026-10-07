@@ -295,3 +295,25 @@ func oldMariaDBDriver(version string) bool {
 	minor, _, _ = strings.Cut(minor, ".")
 	return strings.TrimLeft(major, "0") < "3" || (strings.TrimLeft(major, "0") == "3" && strings.TrimLeft(minor, "0") < "2")
 }
+
+// TestQueryWithoutResult runs a statement that returns no result set through
+// QueryContext, as a client such as usql does for every statement. The rows are
+// empty, and Next and Err report no error.
+func TestQueryWithoutResult(t *testing.T) {
+	each(t, func(t *testing.T, p product, db *sql.DB) {
+		ctx := t.Context()
+		_, _ = db.ExecContext(ctx, "DROP TABLE odbc_ddl")
+		r, err := db.QueryContext(ctx, "CREATE TABLE odbc_ddl (a integer)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _, _ = db.ExecContext(ctx, "DROP TABLE odbc_ddl") }()
+		defer r.Close()
+		if r.Next() {
+			t.Error("a CREATE TABLE returned a row")
+		}
+		if err := r.Err(); err != nil {
+			t.Errorf("rows.Err: %v", err)
+		}
+	})
+}

@@ -127,6 +127,31 @@ answer is `REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI`.
   driver for both (D14). MySQL Connector/ODBC documents the same key, and the
   tests do not run it.
 
+## Why does my program crash when it links `go-sqlite3` and DuckDB?
+
+The first query of a program that links both `github.com/mattn/go-sqlite3` and
+the DuckDB bindings, and that uses the SQLite ODBC driver, ends in a
+segmentation fault. The DuckDB bindings link with `-rdynamic`, which makes the
+program export every global symbol of its own, including the 268 `sqlite3_*`
+functions of the SQLite that `go-sqlite3` carries. The SQLite ODBC driver is a
+shared library that needs `sqlite3_*` functions too. The dynamic linker gives it
+the copy in the program for some functions and the copy in `libsqlite3.so` for
+the others, and the two copies do not match. The same thing can happen to any
+ODBC driver that shares a library with a copy that your program carries and
+exports.
+
+This is not a fault of `odbc`, and the driver cannot prevent it. Use one of
+these:
+
+- Build `go-sqlite3` against the SQLite of the system, with the build tag
+  `libsqlite3`. The program then exports no `sqlite3_*` function, and both sides
+  use the same library.
+- Leave `go-sqlite3` or DuckDB out of the program.
+- Build with `CGO_ENABLED=0`.
+
+[`usql`][usql] shows it. With the default tags and `odbc`, the first query
+crashes. With `-tags 'odbc libsqlite3'` it works.
+
 ## How do I pass another setting to an ODBC driver?
 
 Every ODBC driver has its own keys. Add one to the query of the URL, or to the

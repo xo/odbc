@@ -31,6 +31,12 @@ None open.
 
 ### Known limits
 
+- The SQLite ODBC driver answers a `VALUES` statement with `SQL_NO_DATA` when it
+  executes, though the statement has a result. The driver manager then takes the
+  statement for one with no result, and describing a column fails with
+  `HY010`. `select * from (values (1))` works. This is a fault of the SQLite ODBC
+  driver, and `odbc` cannot work around it.
+
 - MariaDB Connector/ODBC before 3.2 lists no primary key of a MySQL 8 or later
   table, because it compares `COLUMN_KEY` with the text `pri` and MySQL compares
   it case sensitively. The Ubuntu package is 3.1.15. `TestCatalog` logs it.
