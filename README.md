@@ -34,9 +34,10 @@ manager is the system library that finds the database drivers and calls them.
 The driver needs no cgo and no C compiler. One code base serves Windows, macOS
 and Linux.
 
-The driver works on Linux against PostgreSQL, MariaDB, MySQL, SQL Server and
-SQLite. It has not run on macOS or Windows yet, and DuckDB is not tested.
-[`docs/PROGRESS.md`](docs/PROGRESS.md) says where the work stands.
+CI tests the driver on Linux, macOS and Windows against PostgreSQL, MariaDB,
+MySQL, SQL Server, SQLite and DuckDB. Each system tests the databases that its
+runner can hold. [`docs/PROGRESS.md`](docs/PROGRESS.md) says where the work
+stands.
 
 # Installing
 
@@ -129,16 +130,15 @@ answer is `REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI`.
 
 ## Why does my program crash when it links `go-sqlite3` and DuckDB?
 
-The first query of a program that links both `github.com/mattn/go-sqlite3` and
-the DuckDB bindings, and that uses the SQLite ODBC driver, ends in a
-segmentation fault. The DuckDB bindings link with `-rdynamic`, which makes the
-program export every global symbol of its own, including the 268 `sqlite3_*`
-functions of the SQLite that `go-sqlite3` carries. The SQLite ODBC driver is a
-shared library that needs `sqlite3_*` functions too. The dynamic linker gives it
-the copy in the program for some functions and the copy in `libsqlite3.so` for
-the others, and the two copies do not match. The same thing can happen to any
-ODBC driver that shares a library with a copy that your program carries and
-exports.
+A program links both `github.com/mattn/go-sqlite3` and the DuckDB bindings and
+uses the SQLite ODBC driver. Its first query ends in a segmentation fault. The
+DuckDB bindings link with `-rdynamic`. That makes the program export every
+global symbol of its own, including the 268 `sqlite3_*` functions of the SQLite
+that `go-sqlite3` carries. The SQLite ODBC driver is a shared library, and it
+needs `sqlite3_*` functions too. The dynamic linker gives it the copy in the
+program for some functions. It gives it the copy in `libsqlite3.so` for the
+others, and the two copies do not match. The same can happen to any ODBC driver
+that shares a library with a copy that your program carries and exports.
 
 This is not a fault of `odbc`, and the driver cannot prevent it. Use one of
 these:

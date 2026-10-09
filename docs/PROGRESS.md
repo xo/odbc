@@ -8,9 +8,9 @@ in [`decisions/`](decisions/README.md).
 ## Where the work stands
 
 The workflow passes on GitHub for all three systems (D21), with the databases that
-each runner holds. The `test` module also passes locally on Linux against all six
-databases, on Windows 11 against five, and on macOS against PostgreSQL, MariaDB,
-MySQL, SQLite and DuckDB.
+each runner holds. The `test` module also passes on a developer machine. On Linux
+it passes against all six databases, on Windows 11 against five, and on macOS
+against PostgreSQL, MariaDB, MySQL, SQLite and DuckDB.
 
 | System | Passes against |
 | --- | --- |
@@ -21,7 +21,10 @@ MySQL, SQLite and DuckDB.
 SQL Server is tested on Linux only (D13).
 
 The driver has the options of D22, the tools of D23 and the block fetch, catalog
-and location of D24. The first release is v0.1.0.
+and location of D24. The releases are v0.1.0 and v0.1.1. The second fixes a
+statement that returns no result set. It also documents a crash that the FAQ of
+the README explains, which happens in a program that links `go-sqlite3` and
+DuckDB.
 
 Next: see [`BACKLOG.md`](BACKLOG.md).
 
@@ -34,10 +37,14 @@ database. The tests skip a database whose variable is empty.
 cd ../dbmeta/test && DBMETA_OWNER_NAME=odbc go run ./cmd/dbrun start postgres mariadb mysql sqlserver
 ```
 
-Run `go test ./...` in the `test` directory. The variables are `ODBC_POSTGRES`, `ODBC_MARIADB`, `ODBC_MYSQL`,
-`ODBC_SQLSERVER`, `ODBC_SQLITE` and `ODBC_DUCKDB`. Each is a data source name for the driver
-and names the driver library with the `driver` key, as in
+Run `go test ./...` in the `test` directory. Each database has three variables,
+and the first one that is set wins. `ODBC_POSTGRES`, `ODBC_MARIADB`, `ODBC_MYSQL`,
+`ODBC_SQLSERVER`, `ODBC_SQLITE` and `ODBC_DUCKDB` each hold a data source name for
+the driver. It names the driver library with the `driver` key, as in
 `odbc+PostgreSQL+Unicode://postgres:pass@127.0.0.1:55009/postgres?driver=/usr/lib/psqlodbcw.so`.
+The same names with `_URL` hold the URL that `dbrun` prints, and with `_DRIVER`
+they hold the name or the path of the ODBC driver. CI uses those two. See
+`dsnOf` in `test/product_test.go`.
 `dbrun dsn <name>` prints the host, port and password.
 
 ## Running the tests on Windows and macOS

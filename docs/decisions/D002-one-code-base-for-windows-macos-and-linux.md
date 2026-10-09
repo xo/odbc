@@ -11,7 +11,7 @@ The ODBC functions are the same everywhere. The differences are the name of the 
 ## Settled
 
 - The names tried. Windows has `odbc32.dll`. Linux has `libodbc.so.2`, then `libodbc.so`, from `unixODBC`. macOS has `libodbc.2.dylib` from `unixODBC`, with the Homebrew and MacPorts paths after it. A data source name can name another path with the `manager` key (D16).
-- How the library is opened. `lib_unix.go` uses `purego.Dlopen`. `purego` has no `Dlopen` on Windows, but its function registration accepts the handle that `syscall.LoadLibrary` returns, and `lib_windows.go` does that. Both compile on every system. The Linux code has run against five databases. The Windows code has run against PostgreSQL. The macOS code has run against PostgreSQL on Intel.
+- How the library is opened. `lib_unix.go` uses `purego.Dlopen`. `purego` has no `Dlopen` on Windows, but its function registration accepts the handle that `syscall.LoadLibrary` returns, and `lib_windows.go` does that. Both compile on every system. Both have run: CI tests Linux, macOS and Windows against the databases that each runner holds (D21).
 
 ## Open
 

@@ -5,8 +5,9 @@ ODBC driver manager of the system at run time with
 [`purego`](https://github.com/ebitengine/purego). It needs no cgo and no C
 compiler, and it runs the same way on Windows, macOS and Linux (D1, D2).
 
-The driver works on Linux against PostgreSQL, MariaDB, MySQL, SQL Server and
-SQLite. It has not run on macOS or Windows, and DuckDB is not tested yet.
+The driver is released as v0.1.1. CI tests it on Linux, macOS and Windows
+against PostgreSQL, MariaDB, MySQL, SQL Server, SQLite and DuckDB. Each system
+tests the databases that its runner can hold (D21).
 [`docs/PROGRESS.md`](docs/PROGRESS.md) says where the work stands. A value has
 the Go type that `dbimp` gives its kind (D17, D18).
 
@@ -122,6 +123,11 @@ The `test` module is separate, and `./...` in the root does not reach it.
 
 `gofmt -l .` prints nothing when the code is formatted. CI runs the tests with
 `-count=2`.
+
+Run every check before you commit, and stop at the first one that fails. Join the
+commands with `&&`, and do not pipe a check through `tail`, because the pipe
+hides its exit status. Push only when Ken says so, and only after the checks
+pass here.
 
 ## Skills
 

@@ -29,4 +29,4 @@ CI has two ways to start a server, and the test code does not care which one ran
 
 ## Open
 
-Whether the runner images ship the servers, and under which names, is not checked. The install steps for each driver on each system are in `docs/BACKLOG.md`.
+D21 records what the runner images hold and what each job needed, and it amends this layout where the runners differ. The versions of the drivers are in `.github/workflows/test.yml`.

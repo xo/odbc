@@ -10,4 +10,4 @@ The point of the project is that one code base behaves the same on all three. A 
 
 ## Consequence
 
-The unit job in CI runs on `ubuntu-latest`, `macos-latest` and `windows-latest`. The integration jobs follow when the driver exists. Which database runs on which system is in D13.
+The unit job in CI runs on `ubuntu-latest`, `macos-latest` and `windows-latest`. The integration jobs run on each system too, with the databases that its runner can hold. D13 and D21 say which.
