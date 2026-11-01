@@ -173,6 +173,17 @@ Whatever the database takes, and for every database that the tests use it is `?`
 The driver passes the text of the statement on as it is. `psqlODBC` rejects `$1`
 (D16).
 
+## How does a client tell a wrong password from another failure?
+
+`*odbc.Error` has a method `AuthenticationRefused() bool`. It is true when the
+database refused the credential and a new password can cure it. That means a
+wrong password, an unknown user, or a password that the database needs and the
+client did not send. It is false for a missing permission, a locked account, an
+expired password and a failure of the network. It looks at every record of the
+call, so a caller that walks the errors of a tree, as `usql` does, finds it.
+PostgreSQL through `psqlODBC` reports a wrong password with the state `08001`,
+so the driver reads the text of the server for it. D25 has the rules.
+
 ## Why is a timestamp a `dbimp.LocalDateTime`?
 
 An ODBC timestamp has no time zone, and a `time.Time` always has one. A
@@ -222,7 +233,7 @@ SQL Server is tested on Linux only.
 
 # Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 24 decisions so far.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 25 decisions so far.
 
 <br/>
 

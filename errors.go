@@ -73,6 +73,54 @@ func (e *Error) Is(target error) bool {
 	return ok && strings.HasPrefix(e.State, string(c))
 }
 
+// Native codes of a login that failed for a reason that a new password does not
+// cure: a locked account, an expired password and a password that must change.
+// SQL Server sends 18486, 18487 and 18488 with the state 28000. MySQL and
+// MariaDB send 3118 and 1862.
+var noRetryNative = map[int32]bool{18486: true, 18487: true, 18488: true, 3118: true, 1862: true}
+
+// AuthenticationRefused reports whether the database refused the credential in
+// a way that a new password can cure. That means a wrong password, a user that
+// the database does not know, or a password that the database needs and the
+// client did not send. It looks at this record and at the records of the same
+// call. A client such as usql asks every error of a tree for this method, and
+// takes a true from any (D25).
+//
+// It is false for a refusal for lack of a permission, for a locked account or
+// an expired password, and for a failure of the network, of TLS or of a timeout.
+func (e *Error) AuthenticationRefused() bool {
+	if e.refusedHere() {
+		return true
+	}
+	for i := range e.Next {
+		if e.Next[i].refusedHere() {
+			return true
+		}
+	}
+	return false
+}
+
+// refusedHere reports whether this record alone says that the credential was
+// refused. SQLSTATE class 28 is "invalid authorization specification". MariaDB,
+// MySQL and SQL Server answer a refused login with 28000.
+//
+// psqlODBC answers 08001, the class of a failed connection, with the text of the
+// server. For it the text decides. libpq says "authentication failed" for a
+// refused password. It says "no password supplied" when the server asks and the
+// client has none. A connection that failed for another reason has neither text.
+// The state 08004 is not counted, because a server sends it for other reasons
+// too.
+func (e *Error) refusedHere() bool {
+	if strings.HasPrefix(e.State, "28") {
+		return !noRetryNative[e.Native]
+	}
+	if e.State != "08001" {
+		return false
+	}
+	msg := strings.ToLower(e.Message)
+	return strings.Contains(msg, "authentication failed") || strings.Contains(msg, "no password supplied")
+}
+
 // ConnectionError reports whether the SQLSTATE is in class 08, a failure of
 // the connection.
 func (e *Error) ConnectionError() bool {

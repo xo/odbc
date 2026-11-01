@@ -97,7 +97,7 @@ table in `README.md`.
 
 Every decision is a file in `docs/decisions/`, named `D<nnn>-<title>.md`. It
 opens with its number, its title and its status, and it gives the reason and
-what was rejected. There are 24 decisions so far. Add the row to the index in
+what was rejected. There are 25 decisions so far. Add the row to the index in
 `docs/decisions/README.md` when you add a file, and `TestTheDecisionIndexIsComplete`
 fails if you forget. Never write "see D<n> of another project" in place of a
 reason.
