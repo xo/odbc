@@ -167,8 +167,18 @@ func limitedUser(product string) (drop, create []string) {
 		return []string{"DROP TABLE IF EXISTS odbc_auth_t", "DROP ROLE IF EXISTS odbc_lim"},
 			[]string{"CREATE TABLE odbc_auth_t (a integer)", "CREATE ROLE odbc_lim LOGIN PASSWORD '" + limitedPassword + "'"}
 	case "mariadb", "mysql":
-		return []string{"DROP TABLE IF EXISTS mysql.odbc_auth_t", "DROP USER IF EXISTS 'odbc_lim'@'%'"},
-			[]string{"CREATE TABLE mysql.odbc_auth_t (a integer)", "CREATE USER 'odbc_lim'@'%' IDENTIFIED BY '" + limitedPassword + "'"}
+		// A server with the anonymous user, such as the MariaDB of Homebrew, lets the
+		// user of the host localhost win over the user of any host, so make both.
+		return []string{
+				"DROP TABLE IF EXISTS mysql.odbc_auth_t",
+				"DROP USER IF EXISTS 'odbc_lim'@'%'",
+				"DROP USER IF EXISTS 'odbc_lim'@'localhost'",
+			},
+			[]string{
+				"CREATE TABLE mysql.odbc_auth_t (a integer)",
+				"CREATE USER 'odbc_lim'@'%' IDENTIFIED BY '" + limitedPassword + "'",
+				"CREATE USER 'odbc_lim'@'localhost' IDENTIFIED BY '" + limitedPassword + "'",
+			}
 	default:
 		return []string{"DROP TABLE IF EXISTS odbc_auth_t", "IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'odbc_lim') DROP LOGIN odbc_lim"},
 			[]string{"CREATE TABLE odbc_auth_t (a integer)", "CREATE LOGIN odbc_lim WITH PASSWORD = '" + limitedPassword + "', CHECK_POLICY = OFF"}
