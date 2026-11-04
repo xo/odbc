@@ -9,7 +9,7 @@ The driver is released as v0.1.1. CI tests it on Linux, macOS and Windows
 against PostgreSQL, MariaDB, MySQL, SQL Server, SQLite and DuckDB. Each system
 tests the databases that its runner can hold (D21).
 [`docs/PROGRESS.md`](docs/PROGRESS.md) says where the work stands. A value has
-the Go type that `dbimp` gives its kind (D17, D18).
+the Go type that `dbimp` gives its kind (D17, D18, D26).
 
 ## Standing rules
 
@@ -86,6 +86,7 @@ A document that is not in this table does not exist.
 | Learn what the project is and how to use it | [`README.md`](README.md) |
 | Send a change as a person | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Find out why something is the way it is | [`docs/decisions/README.md`](docs/decisions/README.md) |
+| See which interfaces of the standard library the driver implements | [`docs/INTERFACES.md`](docs/INTERFACES.md) |
 | Find work that is known and not done | [`docs/BACKLOG.md`](docs/BACKLOG.md) |
 | Resume after a session ended | [`docs/PROGRESS.md`](docs/PROGRESS.md) |
 
@@ -97,7 +98,7 @@ table in `README.md`.
 
 Every decision is a file in `docs/decisions/`, named `D<nnn>-<title>.md`. It
 opens with its number, its title and its status, and it gives the reason and
-what was rejected. There are 25 decisions so far. Add the row to the index in
+what was rejected. There are 27 decisions so far. Add the row to the index in
 `docs/decisions/README.md` when you add a file, and `TestTheDecisionIndexIsComplete`
 fails if you forget. Never write "see D<n> of another project" in place of a
 reason.

@@ -184,6 +184,14 @@ call, so a caller that walks the errors of a tree, as `usql` does, finds it.
 PostgreSQL through `psqlODBC` reports a wrong password with the state `08001`,
 so the driver reads the text of the server for it. D25 has the rules.
 
+## How do I read the id of an insert?
+
+ODBC has no call for it, so `LastInsertId` fails unless the statement has the
+option `odbc.WithLastInsertID(true)`. The driver then reads it with a statement of
+the database: `LAST_INSERT_ID()` for MySQL and MariaDB, and `last_insert_rowid()`
+for SQLite. For SQL Server and PostgreSQL the statement itself reads the id, with
+`OUTPUT` or `RETURNING`. D27 says why.
+
 ## Why is a timestamp a `dbimp.LocalDateTime`?
 
 An ODBC timestamp has no time zone, and a `time.Time` always has one. A
@@ -228,12 +236,13 @@ SQL Server is tested on Linux only.
 | Send a change | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Read the rules for a coding agent | [`AGENTS.md`](AGENTS.md) |
 | Find out why something is the way it is | [`docs/decisions/README.md`](docs/decisions/README.md) |
+| See which interfaces of the standard library the driver implements | [`docs/INTERFACES.md`](docs/INTERFACES.md) |
 | Find work that is known and not done | [`docs/BACKLOG.md`](docs/BACKLOG.md) |
 | See where the work stands | [`docs/PROGRESS.md`](docs/PROGRESS.md) |
 
 # Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 25 decisions so far.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 27 decisions so far.
 
 <br/>
 

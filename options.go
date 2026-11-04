@@ -31,7 +31,9 @@ type options struct {
 	noScan   bool
 	// fetchSize is the number of rows for each fetch, and 0 or 1 reads one at a time.
 	fetchSize int
-	params    map[string]any
+	// lastInsertID asks for the id that the insert made (D27).
+	lastInsertID bool
+	params       map[string]any
 }
 
 // Attributes that an option sets.
@@ -95,6 +97,17 @@ func WithNoScan(v bool) Option {
 // the buffer of its column fails the read and never comes back cut short (D24).
 func WithFetchSize(n int) Option {
 	return func(o *options) { o.fetchSize = n }
+}
+
+// WithLastInsertID makes the result of Exec answer LastInsertId. ODBC has no
+// call for it, so the driver asks the database with a statement that reads the
+// value of the session: LAST_INSERT_ID() for MySQL and MariaDB, and
+// last_insert_rowid() for SQLite. It runs after the insert on the same
+// connection. A database with no such statement makes the statement fail with
+// dbimp.ErrNotSupported, and the caller reads the id with RETURNING or OUTPUT
+// (D27).
+func WithLastInsertID(v bool) Option {
+	return func(o *options) { o.lastInsertID = v }
 }
 
 // WithParameter sets a statement attribute by its name. The names are
@@ -199,6 +212,9 @@ func (s *stmt) apply(o options) (undo func(), err error) {
 			return undo, err
 		}
 	}
+	if o.lastInsertID && lastInsertIDStatements[c.dbms] == "" {
+		return undo, fmt.Errorf("%w: the database %q has no safe statement for it, so read the id with RETURNING or OUTPUT", dbimp.Unsupported("WithLastInsertID"), c.dbms)
+	}
 	if o.maxRows > 0 {
 		if err := s.setStmtNumber("WithMaxRows", stmtAttrs["max_rows"], uintptr(o.maxRows)); err != nil {
 			return undo, err
@@ -291,4 +307,45 @@ func (c *conn) setCatalog(name string) (restore func(), err error) {
 		return nil, fmt.Errorf("%w: the catalog is %q after the change", dbimp.Unsupported("WithDatabase"), now)
 	}
 	return func() { _ = set(old) }, nil
+}
+
+// lastInsertIDStatements are the statements that read the last insert id of the
+// session. SQL Server is not here, because a second SCOPE_IDENTITY() gives an
+// older id after an insert with a parameter, and @@IDENTITY gives the id of a
+// trigger. PostgreSQL has lastval(), which gives an older value when the insert
+// used no sequence, so it is not here either (D27).
+var lastInsertIDStatements = map[string]string{
+	"MySQL":   "SELECT LAST_INSERT_ID()",
+	"MariaDB": "SELECT LAST_INSERT_ID()",
+	"SQLite":  "SELECT last_insert_rowid()",
+}
+
+// errNoLastInsertID is the error of LastInsertId for a statement that did not ask
+// for the id.
+var errNoLastInsertID = fmt.Errorf("reading the last insert id: the driver reads it only with the option WithLastInsertID: %w", dbimp.ErrNotSupported)
+
+// lastInsertID reads the last insert id of the session.
+func (c *conn) lastInsertID(ctx context.Context) (int64, error) {
+	text := lastInsertIDStatements[c.dbms]
+	s, err := c.newStmt(text)
+	if err != nil {
+		return 0, err
+	}
+	r, err := s.query(ctx, nil)
+	if err != nil {
+		_ = s.free()
+		return 0, err
+	}
+	r.own = true
+	defer func() { _ = r.Close() }()
+	if err := r.NextRow(); err != nil {
+		return 0, fmt.Errorf("reading the last insert id: %w", err)
+	}
+	switch v := r.row[0].(type) {
+	case int64:
+		return v, nil
+	case uint64:
+		return int64(v), nil
+	}
+	return 0, fmt.Errorf("reading the last insert id: the answer is %T", r.row[0])
 }

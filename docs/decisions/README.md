@@ -41,3 +41,5 @@ wrong, and it prints the row to add.
 | [D23](D023-the-driver-exposes-what-a-tool-needs-to-know-about-the-database.md) | The driver exposes what a tool needs to know about the database | Decided |
 | [D24](D024-the-driver-fetches-in-blocks-reads-the-catalog-and-takes-a-location.md) | The driver fetches in blocks, reads the catalog and takes a location | Decided |
 | [D25](D025-an-odbc-error-says-whether-the-credential-was-refused.md) | An ODBC error says whether the credential was refused | Decided |
+| [D26](D026-the-driver-takes-dbimp-v0-24-3-for-the-decimal-parts.md) | The driver takes dbimp v0.24.3 for the decimal parts | Decided |
+| [D27](D027-the-driver-implements-the-optional-interfaces-that-it-can.md) | The driver implements the optional interfaces that it can | Decided |

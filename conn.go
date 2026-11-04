@@ -5,6 +5,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -52,16 +54,29 @@ func (c *conn) dead() bool {
 // IsValid implements driver.Validator.
 func (c *conn) IsValid() bool { return !c.closed && !c.dead() }
 
-// ResetSession implements driver.SessionResetter. The statement has not been
-// sent, so a dead connection returns driver.ErrBadConn.
+// ResetSession implements driver.SessionResetter. It ends a transaction that
+// nobody ended, so the next user of the connection starts in autocommit, and it
+// reports a connection that is gone with driver.ErrBadConn. The statement has
+// not been sent, so that error is safe.
 func (c *conn) ResetSession(context.Context) error {
+	if c.closed {
+		return driver.ErrBadConn
+	}
+	if c.inTx {
+		c.inTx = false
+		_ = c.api.endTran(handleDbc, c.dbc, rollback)
+		_ = c.api.setConnAttr(c.dbc, attrAutocommit, autocommitOn, 0)
+	}
 	if !c.IsValid() {
 		return driver.ErrBadConn
 	}
 	return nil
 }
 
-// Ping implements driver.Pinger.
+// Ping implements driver.Pinger. It asks the driver whether the connection is
+// dead. For a database that has a statement that is safe to run anywhere, it also
+// sends that statement, so that a server that went away shows at once and not at
+// the next query (D27).
 func (c *conn) Ping(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -69,7 +84,29 @@ func (c *conn) Ping(ctx context.Context) error {
 	if !c.IsValid() {
 		return driver.ErrBadConn
 	}
-	return nil
+	if !pingable[c.dbms] || c.inTx {
+		return nil
+	}
+	s, err := c.newStmt("SELECT 1")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = s.free() }()
+	r, err := s.query(ctx, nil)
+	if err != nil {
+		if errors.Is(err, ErrConnection) {
+			return driver.ErrBadConn
+		}
+		return err
+	}
+	r.own = true
+	return r.Close()
+}
+
+// pingable names the databases for which SELECT 1 is a statement. Others, such as
+// Oracle and Db2, need a table in the statement.
+var pingable = map[string]bool{
+	"PostgreSQL": true, "MySQL": true, "MariaDB": true, "Microsoft SQL Server": true, "SQLite": true, "DuckDB": true,
 }
 
 // CheckNamedValue implements driver.NamedValueChecker. ODBC parameters are
@@ -83,6 +120,20 @@ func (*conn) CheckNamedValue(nv *driver.NamedValue) error {
 func checkNamedValue(nv *driver.NamedValue) error {
 	if dbimp.IsOption[options](nv.Value) {
 		return nil
+	}
+	// database/sql refuses an unsigned integer with the high bit set. The driver
+	// sends it as its decimal text, and the database converts it (D27).
+	switch v := nv.Value.(type) {
+	case uint64:
+		if v > math.MaxInt64 {
+			nv.Value = strconv.FormatUint(v, 10)
+			return nil
+		}
+	case uint:
+		if uint64(v) > math.MaxInt64 {
+			nv.Value = strconv.FormatUint(uint64(v), 10)
+			return nil
+		}
 	}
 	if nv.Name != "" {
 		return fmt.Errorf("checking the arguments: ODBC parameters are positional, not named: %w", dbimp.ErrNotSupported)

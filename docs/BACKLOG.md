@@ -22,6 +22,10 @@ None open.
 
 ### Driver
 
+- Read the id of an insert for SQL Server and PostgreSQL. The way is a change to
+  the statement, as in `OUTPUT inserted.id` or `RETURNING id`, which the driver
+  does not rewrite (D27).
+
 - Make `WithReadonly` work for a database that has a statement for it, chosen by
   the name the database reports (D22).
 - Report `driver.ErrBadConn` only when a statement did not reach the server.

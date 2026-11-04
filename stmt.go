@@ -70,11 +70,15 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 }
 
 // result is the outcome of an Exec.
-type result struct{ n int64 }
-
-func (result) LastInsertId() (int64, error) {
-	return 0, errors.New("reading the last insert id: ODBC does not report one")
+type result struct {
+	n int64
+	// id is the last insert id when the statement had the option
+	// WithLastInsertID, and err says why there is none.
+	id  int64
+	err error
 }
+
+func (r result) LastInsertId() (int64, error) { return r.id, r.err }
 
 func (r result) RowsAffected() (int64, error) { return r.n, nil }
 
@@ -127,7 +131,7 @@ func (s *stmt) run(ctx context.Context, args []driver.NamedValue) (undo func(), 
 }
 
 func (s *stmt) exec(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
-	undo, _, err := s.run(ctx, args)
+	undo, o, err := s.run(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +145,11 @@ func (s *stmt) exec(ctx context.Context, args []driver.NamedValue) (driver.Resul
 	if err := a.check("counting the rows affected", a.rowCount(s.h, &n), handleStmt, s.h); err != nil {
 		return nil, err
 	}
-	return result{n: int64(max(n, 0))}, nil
+	res := result{n: int64(max(n, 0)), err: errNoLastInsertID}
+	if o.lastInsertID {
+		res.id, res.err = s.c.lastInsertID(ctx)
+	}
+	return res, nil
 }
 
 func (s *stmt) query(ctx context.Context, args []driver.NamedValue) (*rows, error) {

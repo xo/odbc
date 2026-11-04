@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strings"
 	"time"
@@ -318,11 +319,24 @@ func (r *rows) ColumnTypeNullable(i int) (nullable, ok bool) {
 	return false, false
 }
 
+// unbounded names the types that hold text or bytes with no limit, which a driver
+// can report with a size that is only its own cap, as psqlODBC does for text.
+var unbounded = map[string]bool{
+	"text": true, "ntext": true, "longtext": true, "mediumtext": true, "clob": true, "nclob": true,
+	"bytea": true, "longblob": true, "mediumblob": true, "json": true, "jsonb": true, "xml": true,
+}
+
 // ColumnTypeLength implements driver.RowsColumnTypeLength.
 func (r *rows) ColumnTypeLength(i int) (length int64, ok bool) {
 	c := r.cols[i]
 	switch c.sqlType {
 	case tChar, tVarchar, tLongVarchar, tWChar, tWVarchar, tWLongVarchar, tBinary, tVarbinary, tLongVarbinary:
+		// The contract gives math.MaxInt64 for a type with no limit. A long type, a
+		// size of zero and the types that the databases name as unbounded have none.
+		if c.sqlType == tLongVarchar || c.sqlType == tWLongVarchar || c.sqlType == tLongVarbinary ||
+			c.size == 0 || unbounded[strings.ToLower(c.typeName)] {
+			return math.MaxInt64, true
+		}
 		return int64(c.size), true
 	}
 	return 0, false

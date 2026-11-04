@@ -63,8 +63,12 @@ func (c *conn) begin(opts driver.TxOptions) (driver.Tx, error) {
 	}
 	ret := c.api.setConnAttr(c.dbc, attrAutocommit, autocommitOff, 0)
 	if err := c.api.check("beginning a transaction", ret, handleDbc, c.dbc); err != nil {
+		if t.iso != 0 {
+			_ = c.api.setConnAttr(c.dbc, attrTxnIsolation, uintptr(t.iso), 0)
+		}
 		return nil, err
 	}
+	c.inTx = true
 	return t, nil
 }
 
@@ -93,6 +97,7 @@ func (t *tx) Rollback() error { return t.end("rolling back", rollback) }
 
 func (t *tx) end(op string, how int16) error {
 	a, c := t.c.api, t.c
+	c.inTx = false
 	err := a.check(op, a.endTran(handleDbc, c.dbc, how), handleDbc, c.dbc)
 	// the connection goes back to autocommit whether or not the end worked
 	if e := a.check("ending the transaction", a.setConnAttr(c.dbc, attrAutocommit, autocommitOn, 0), handleDbc, c.dbc); err == nil {
