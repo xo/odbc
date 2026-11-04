@@ -1,6 +1,6 @@
 # D16. The data source name is a URL or an ODBC connection string
 
-Status: Decided.
+Status: Decided, and amended by D28.
 
 `sql.Open("odbc", dsn)` accepts two forms. The first is a URL with the scheme `odbc+<driver>`, as D12 describes. The second is anything else. The driver takes it for an ODBC connection string and passes it on as it is.
 
@@ -11,7 +11,7 @@ Status: Decided.
 ## Details
 
 - The driver name keeps its case, because `url.Parse` lowercases a scheme and the driver manager looks a name up by what the file registers.
-- An instance in the path becomes `host\instance`.
+- An instance in the path becomes `host\instance` for SQL Server only. D28 says what the path means for the other drivers.
 - For a driver with `SQL Server` in its name the port is written `host,port`, because the Microsoft drivers ignore a `Port` key. `dburl` writes a `Port` key and the Microsoft driver then connects to the default port.
 - The query key `driver` replaces the driver name. It can be the path of a library, so the tests do not register a driver. The key `manager` is the path of the driver manager. The key `wchar` is the size of `SQLWCHAR` (D20).
 - A value with a character that ends it early is written in braces.

@@ -184,6 +184,21 @@ call, so a caller that walks the errors of a tree, as `usql` does, finds it.
 PostgreSQL through `psqlODBC` reports a wrong password with the state `08001`,
 so the driver reads the text of the server for it. D25 has the rules.
 
+## How do I open a SQLite or DuckDB file?
+
+The path of the URL is the path of the file, and the host must be empty or
+`localhost`. `dburl` and `usql` take these two forms:
+
+```
+odbc+SQLite3://localhost/home/ken/a.db
+odbc+SQLite3:///?Database=/home/ken/a.db
+```
+
+A path that lost a slash, as in `odbc+sqlite://home/ken/a.db`, has the host `home`.
+The driver refuses it with an error and makes no file, because SQLite makes an
+empty file in the current directory for a name that does not exist. D28 has the
+rules.
+
 ## How do I read the id of an insert?
 
 ODBC has no call for it, so `LastInsertId` fails unless the statement has the
@@ -242,7 +257,7 @@ SQL Server is tested on Linux only.
 
 # Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 27 decisions so far.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). There are 28 decisions so far.
 
 <br/>
 

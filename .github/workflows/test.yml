@@ -316,7 +316,14 @@ jobs:
         # process that a step starts ends with the step, so WMI starts it, and the
         # process then belongs to no step.
         run: |
-          $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin"
+          # The runner image changes its MySQL from time to time (8.0, then 8.4), so find it.
+          $mysqld = (Get-Command mysqld.exe -ErrorAction SilentlyContinue).Source
+          if (-not $mysqld) {
+            $mysqld = (Get-ChildItem "C:\Program Files\MySQL" -Recurse -Filter mysqld.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          }
+          if (-not $mysqld) { throw "the runner image has no mysqld.exe" }
+          $mysql = Split-Path $mysqld
+          Write-Host "MySQL is in $mysql"
           $data = "$env:RUNNER_TEMP\mysql"
           & "$mysql\mysqld.exe" --initialize-insecure --datadir="$data"
           $command = "`"$mysql\mysqld.exe`" --datadir=`"$data`" --port=55018 --log-error=`"$env:RUNNER_TEMP\mysql.log`""

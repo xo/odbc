@@ -31,7 +31,7 @@ wrong, and it prints the row to add.
 | [D13](D013-ci-tests-native-databases-on-windows-and-macos-and-containers-on-linux.md) | CI tests native databases on Windows and macOS and containers on Linux | Decided, amends D9, and amended by D21 |
 | [D14](D014-mariadb-connector-odbc-tests-mysql-and-mariadb.md) | MariaDB Connector/ODBC tests MySQL and MariaDB | Decided, and amends D10 |
 | [D15](D015-the-integration-tests-are-a-separate-module-that-uses-dbmeta-fixtures.md) | The integration tests are a separate module that uses dbmeta fixtures | Decided |
-| [D16](D016-the-data-source-name-is-a-url-or-an-odbc-connection-string.md) | The data source name is a URL or an ODBC connection string | Decided |
+| [D16](D016-the-data-source-name-is-a-url-or-an-odbc-connection-string.md) | The data source name is a URL or an ODBC connection string | Decided, and amended by D28 |
 | [D17](D017-the-driver-imports-dbimp-for-its-shared-types.md) | The driver imports dbimp for its shared types | Decided, and amends D4 |
 | [D18](D018-odbc-types-map-onto-the-dbimp-kinds.md) | ODBC types map onto the dbimp kinds | Decided |
 | [D19](D019-the-driver-adapts-to-a-database-by-its-reported-name.md) | The driver adapts to a database by the name it reports | Decided |
@@ -43,3 +43,4 @@ wrong, and it prints the row to add.
 | [D25](D025-an-odbc-error-says-whether-the-credential-was-refused.md) | An ODBC error says whether the credential was refused | Decided |
 | [D26](D026-the-driver-takes-dbimp-v0-24-3-for-the-decimal-parts.md) | The driver takes dbimp v0.24.3 for the decimal parts | Decided |
 | [D27](D027-the-driver-implements-the-optional-interfaces-that-it-can.md) | The driver implements the optional interfaces that it can | Decided |
+| [D28](D028-the-path-of-a-url-means-what-the-driver-needs.md) | The path of a URL means what the driver needs | Decided, and amends D16 |
