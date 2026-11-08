@@ -122,18 +122,25 @@ func TestErrVerbose(t *testing.T) {
 	}{
 		"one record": {
 			&Error{Op: "executing", State: "42S02", Native: 1146, Message: "Table 'x' does not exist"},
-			"ERROR 42S02 (native 1146) in executing: Table 'x' does not exist",
+			"ERROR:  42S02: Table 'x' does not exist\nDETAIL:  native error 1146\nCONTEXT:  in executing",
 		},
-		"no native code": {
-			&Error{Op: "preparing", State: "HY000", Message: "bad"},
-			"ERROR HY000 in preparing: bad",
+		"no native code and no call": {
+			&Error{State: "HY000", Message: "bad"},
+			"ERROR:  HY000: bad",
+		},
+		"severity from the driver": {
+			&Error{Op: "executing", State: "42P01", Native: 1, Message: `ERROR: relation "nope" does not exist`},
+			"ERROR:  42P01: relation \"nope\" does not exist\nDETAIL:  native error 1\nCONTEXT:  in executing",
 		},
 		"further records": {
 			&Error{
 				Op: "connecting", State: "01000", Message: "note",
-				Next: []Error{{Op: "connecting", State: "28000", Native: 18456, Message: "login failed"}},
+				Next: []Error{
+					{Op: "connecting", State: "28000", Native: 18456, Message: "login failed"},
+					{Op: "connecting", State: "08001", Message: "no route"},
+				},
 			},
-			"ERROR 01000 in connecting: note\nERROR 28000 (native 18456) in connecting: login failed",
+			"ERROR:  01000: note\nDETAIL:  28000 (native 18456): login failed\nDETAIL:  08001: no route\nCONTEXT:  in connecting",
 		},
 	} {
 		if got := tt.err.ErrVerbose("select 1"); got != tt.want {

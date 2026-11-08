@@ -186,9 +186,12 @@ so the driver reads the text of the server for it. D25 has the rules.
 
 ## How does a client show an error at full detail?
 
-`*odbc.Error` has a method `ErrVerbose(query string) string`. It gives every record of the call,
-one on each line, with the SQLSTATE, the native code of the database, the call
-that failed and the text of the database. `usql` calls it for `\errverbose`.
+`*odbc.Error` has a method `ErrVerbose(query string) string`. It writes the error
+in the form of the verbose mode of libpq, which `psql` shows for `\errverbose`:
+an `ERROR:  <SQLSTATE>: <message>` line, then a `DETAIL` line for the native code
+and for each further record, and a `CONTEXT` line for the call that failed.
+`usql` calls it. There is no `LINE` and caret, because ODBC has no field for the
+place of the error in the text of the statement.
 
 ## How do I open a SQLite or DuckDB file?
 
