@@ -184,6 +184,12 @@ call, so a caller that walks the errors of a tree, as `usql` does, finds it.
 PostgreSQL through `psqlODBC` reports a wrong password with the state `08001`,
 so the driver reads the text of the server for it. D25 has the rules.
 
+## How does a client show an error at full detail?
+
+`*odbc.Error` has a method `ErrVerbose(query string) string`. It gives every record of the call,
+one on each line, with the SQLSTATE, the native code of the database, the call
+that failed and the text of the database. `usql` calls it for `\errverbose`.
+
 ## How do I open a SQLite or DuckDB file?
 
 The path of the URL is the path of the file, and the host must be empty or

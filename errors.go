@@ -121,6 +121,33 @@ func (e *Error) refusedHere() bool {
 	return strings.Contains(msg, "authentication failed") || strings.Contains(msg, "no password supplied")
 }
 
+// ErrVerbose returns every field of this record and of the records of the same
+// call, one record on each line, for a client that shows an error at full detail,
+// such as \errverbose of usql, which finds the method with errors.As. A record
+// reads like the line that the client of MySQL writes: ERROR 42S02 (native 1146)
+// in executing: the text of the database. The native code is left out when it is
+// 0. The driver does not use the statement, so the argument is ignored.
+func (e *Error) ErrVerbose(string) string {
+	var b strings.Builder
+	e.writeVerbose(&b)
+	for i := range e.Next {
+		b.WriteByte('\n')
+		e.Next[i].writeVerbose(&b)
+	}
+	return b.String()
+}
+
+func (e *Error) writeVerbose(b *strings.Builder) {
+	b.WriteString("ERROR " + e.State)
+	if e.Native != 0 {
+		fmt.Fprintf(b, " (native %d)", e.Native)
+	}
+	if e.Op != "" {
+		b.WriteString(" in " + e.Op)
+	}
+	b.WriteString(": " + e.Message)
+}
+
 // ConnectionError reports whether the SQLSTATE is in class 08, a failure of
 // the connection.
 func (e *Error) ConnectionError() bool {

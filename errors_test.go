@@ -113,3 +113,31 @@ func TestAuthenticationRefusedWalksNext(t *testing.T) {
 		t.Error("the first record does not say that a later record refused the credential")
 	}
 }
+
+func TestErrVerbose(t *testing.T) {
+	t.Parallel()
+	for name, tt := range map[string]struct {
+		err  *Error
+		want string
+	}{
+		"one record": {
+			&Error{Op: "executing", State: "42S02", Native: 1146, Message: "Table 'x' does not exist"},
+			"ERROR 42S02 (native 1146) in executing: Table 'x' does not exist",
+		},
+		"no native code": {
+			&Error{Op: "preparing", State: "HY000", Message: "bad"},
+			"ERROR HY000 in preparing: bad",
+		},
+		"further records": {
+			&Error{
+				Op: "connecting", State: "01000", Message: "note",
+				Next: []Error{{Op: "connecting", State: "28000", Native: 18456, Message: "login failed"}},
+			},
+			"ERROR 01000 in connecting: note\nERROR 28000 (native 18456) in connecting: login failed",
+		},
+	} {
+		if got := tt.err.ErrVerbose("select 1"); got != tt.want {
+			t.Errorf("%s: ErrVerbose is %q, want %q", name, got, tt.want)
+		}
+	}
+}
